@@ -1,0 +1,14 @@
+.env
+.DS_Store
+data/sessions/*
+!data/sessions/.gitkeep
+data/resume.*
+data/resumes/*
+!data/resumes/.gitkeep
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.playwright/
+models/
