@@ -10,6 +10,8 @@ LLM_PROVIDER = os.getenv("LLM_PROVIDER", "anthropic")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+LOCAL_MODEL_PATH = os.getenv("LOCAL_MODEL_PATH", "./models/my_model")
+LOCAL_MODEL_TYPE = os.getenv("LOCAL_MODEL_TYPE", "huggingface")
 
 RESUME_PATH = os.getenv("RESUME_PATH", "./data/resume.txt")
 

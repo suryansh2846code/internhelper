@@ -13,5 +13,8 @@ def get_llm() -> BaseLLM:
     elif provider == "groq":
         from llm.groq_llm import GroqLLM
         return GroqLLM()
+    elif provider == "local":
+        from llm.local_llm import LocalLLM
+        return LocalLLM()
     else:
         raise ValueError(f"Unknown LLM_PROVIDER: {provider}")
