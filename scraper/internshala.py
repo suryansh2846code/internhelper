@@ -56,12 +56,13 @@ def get_listing_details(context: BrowserContext, url: str) -> dict:
         page.close()
         return {"jd": "", "questions": []}
 
+    # Job description
     jd = ""
     jd_el = page.query_selector(".internship_details")
     if jd_el:
         jd = jd_el.inner_text().strip()
 
-    # Questions are loaded via AJAX after clicking Apply — must trigger the modal
+    # Click Apply to load questions into the modal
     questions = []
     try:
         apply_btn = page.query_selector("#apply_now_button, .top_apply_now_cta, .apply_now_button")
@@ -69,6 +70,13 @@ def get_listing_details(context: BrowserContext, url: str) -> dict:
             apply_btn.click()
             page.wait_for_timeout(3000)
 
+            # Detect profile-incomplete redirect — can't get questions yet
+            if "resume" in page.url or "profile" in page.url:
+                print(f"[scraper] Profile incomplete — complete your Internshala profile to see questions")
+                page.close()
+                return {"jd": jd, "questions": [], "profile_incomplete": True}
+
+            # Wait for questions modal
             try:
                 page.wait_for_selector("#questions .modal-body", timeout=5_000)
             except Exception:

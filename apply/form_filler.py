@@ -19,9 +19,15 @@ def submit_application(context: BrowserContext, listing: dict, answers: dict) ->
         apply_btn.click()
         page.wait_for_timeout(3000)
 
+        # Detect profile-incomplete redirect
+        if "resume" in page.url or "profile" in page.url:
+            console.print("[yellow]Profile incomplete — complete your Internshala profile first[/yellow]")
+            return False
+
         has_questions = bool(answers)
 
         if has_questions:
+            # Fill each answer into its textarea
             for question, answer in answers.items():
                 textarea = _find_textarea_for_question(page, question)
                 if textarea:
@@ -29,6 +35,7 @@ def submit_application(context: BrowserContext, listing: dict, answers: dict) ->
                 else:
                     console.print(f"[yellow]Field not found for: {question[:60]}[/yellow]")
 
+        # Find and click the submit/confirm button inside the modal or page
         submit_btn = page.query_selector(
             ".modal.show .btn-primary:not([data-dismiss]), "
             "#questions .modal-footer .btn-primary, "
