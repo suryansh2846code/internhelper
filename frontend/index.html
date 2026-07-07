@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>InternHelper</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header>
+    <div class="logo">⚡ InternHelper</div>
+    <span class="tagline">AI-powered Internshala applications</span>
+  </header>
+
+  <main>
+
+    <!-- STEP 1: RESUME MANAGER -->
+    <section class="card" id="resume-panel">
+      <div class="step-header">
+        <span class="step-pill">Step 1</span>
+        <h2>Upload Your Resumes</h2>
+      </div>
+      <p class="step-hint">Upload one resume per role. AI will auto-suggest search keywords from each.</p>
+
+      <div class="upload-row">
+        <input type="text" id="role-input" placeholder="Role label  e.g. frontend, backend, fullstack" />
+        <label class="btn-upload">
+          Choose File
+          <input type="file" id="resume-file" accept=".pdf,.txt,.docx,.png,.jpg,.jpeg,.webp" style="display:none" />
+        </label>
+        <span id="upload-status" class="status-msg"></span>
+      </div>
+
+      <div id="resume-cards"></div>
+    </section>
+
+    <!-- STEP 2: SEARCH SETTINGS -->
+    <section class="card" id="search-panel">
+      <div class="step-header">
+        <span class="step-pill">Step 2</span>
+        <h2>Search Settings</h2>
+      </div>
+
+      <div class="form-grid">
+        <label>Location
+          <input type="text" id="location" value="work from home" />
+        </label>
+        <label>Min stipend (₹/month)
+          <input type="number" id="stipend" value="0" min="0" step="1000" />
+        </label>
+        <label>Max listings per role
+          <input type="number" id="max" value="10" min="1" max="30" />
+        </label>
+      </div>
+
+      <button id="search-btn" class="btn-primary" onclick="startSearch()">
+        Search All Roles
+      </button>
+      <div id="search-status" class="status-msg"></div>
+    </section>
+
+    <!-- STEP 3: RESULTS -->
+    <section id="results-panel" class="hidden">
+      <div class="results-header">
+        <h2 id="results-title">Found listings</h2>
+        <div id="role-filters"></div>
+      </div>
+      <div id="listings-grid"></div>
+    </section>
+
+  </main>
+
+  <!-- REVIEW MODAL -->
+  <div id="modal-overlay" class="hidden" onclick="closeModal(event)">
+    <div class="modal">
+      <button class="modal-close" onclick="closeModalDirect()">✕</button>
+      <div id="modal-content"></div>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
