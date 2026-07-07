@@ -61,13 +61,31 @@ def get_listing_details(context: BrowserContext, url: str) -> dict:
     if jd_el:
         jd = jd_el.inner_text().strip()
 
-    # Try to read questions from the server-rendered page
+    # Questions are loaded via AJAX after clicking Apply — must trigger the modal
     questions = []
-    q_els = page.query_selector_all(".application_question p, .form-group label")
-    for q in q_els:
-        text = q.inner_text().strip()
-        if text and len(text) > 8:
-            questions.append(text)
+    try:
+        apply_btn = page.query_selector("#apply_now_button, .top_apply_now_cta, .apply_now_button")
+        if apply_btn:
+            apply_btn.click()
+            page.wait_for_timeout(3000)
+
+            try:
+                page.wait_for_selector("#questions .modal-body", timeout=5_000)
+            except Exception:
+                pass
+
+            modal_body = page.query_selector("#questions .modal-body")
+            if modal_body:
+                page.wait_for_timeout(1500)  # let AJAX finish
+                q_els = modal_body.query_selector_all(
+                    "label, p.question, .application_question p, .form-group label, textarea"
+                )
+                for q in q_els:
+                    text = q.inner_text().strip()
+                    if text and len(text) > 8 and text not in ("Apply now", "Close"):
+                        questions.append(text)
+    except Exception as e:
+        print(f"[scraper] Questions load error: {e}")
 
     page.close()
     return {"jd": jd, "questions": questions}
