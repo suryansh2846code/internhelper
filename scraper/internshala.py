@@ -83,7 +83,7 @@ def _build_search_url(filters: dict) -> str:
 
     loc = filters.get("location", "").strip().lower()
     if "home" in loc or "remote" in loc or "wfh" in loc:
-        parts.append("work-from-home")
+        parts.append("work-from-home-internships")
     elif loc:
         parts.append(f"location-{loc.replace(' ', '-')}")
 
