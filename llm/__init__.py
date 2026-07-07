@@ -10,5 +10,8 @@ def get_llm() -> BaseLLM:
     elif provider == "openai":
         from llm.openai_llm import OpenAILLM
         return OpenAILLM()
+    elif provider == "groq":
+        from llm.groq_llm import GroqLLM
+        return GroqLLM()
     else:
         raise ValueError(f"Unknown LLM_PROVIDER: {provider}")

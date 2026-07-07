@@ -9,6 +9,7 @@ INTERNSHALA_PASSWORD = os.getenv("INTERNSHALA_PASSWORD")
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "anthropic")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 RESUME_PATH = os.getenv("RESUME_PATH", "./data/resume.txt")
 
