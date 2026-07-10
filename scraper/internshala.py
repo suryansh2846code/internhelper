@@ -2,6 +2,33 @@ from playwright.sync_api import BrowserContext
 import config
 
 
+def dismiss_blocking_modals(page) -> None:
+    """Close Internshala's subscription/upsell overlay that otherwise
+    intercepts pointer events and blocks the Apply button click."""
+    try:
+        close_btn = page.query_selector(
+            ".subscription_alert [data-dismiss], "
+            ".modal.subscription_alert .close, "
+            ".modal.show [data-dismiss].ic-24-cross"
+        )
+        if close_btn:
+            close_btn.click()
+            page.wait_for_timeout(500)
+    except Exception:
+        pass
+
+
+def apply_block_reason(url: str) -> str | None:
+    """Return a human-readable reason if the apply flow was redirected away
+    from the listing (blocked), else None."""
+    u = url.lower()
+    if "/registration" in u or "/register" in u or "/login" in u:
+        return "Not logged in — Internshala session expired. Re-login (reset session) and try again."
+    if "resume" in u or "profile" in u:
+        return "Profile incomplete — complete your Internshala profile before applying."
+    return None
+
+
 def search_internships(context: BrowserContext, filters: dict) -> list[dict]:
     page = context.new_page()
     url = _build_search_url(filters)
@@ -67,12 +94,14 @@ def get_listing_details(context: BrowserContext, url: str) -> dict:
     try:
         apply_btn = page.query_selector("#apply_now_button, .top_apply_now_cta, .apply_now_button")
         if apply_btn:
+            dismiss_blocking_modals(page)
             apply_btn.click()
             page.wait_for_timeout(3000)
 
-            # Detect profile-incomplete redirect — can't get questions yet
-            if "resume" in page.url or "profile" in page.url:
-                print(f"[scraper] Profile incomplete — complete your Internshala profile to see questions")
+            # Detect a redirect away from the listing (not logged in / profile incomplete)
+            reason = apply_block_reason(page.url)
+            if reason:
+                print(f"[scraper] {reason}")
                 page.close()
                 return {"jd": jd, "questions": [], "profile_incomplete": True}
 

@@ -251,11 +251,11 @@ def _run_submit(job_id: str, listing_index: int):
         listing = _jobs[job_id]["listings"][listing_index]
         with sync_playwright() as pw:
             context = get_context(pw)
-            ok = submit_application(context, listing, listing["final_answers"])
+            ok, msg = submit_application(context, listing, listing["final_answers"])
             context.browser.close()
         listing["status"] = "submitted" if ok else "error"
         if not ok:
-            listing["error"] = "Submit button not found or form error"
+            listing["error"] = msg
     except Exception as e:
         _jobs[job_id]["listings"][listing_index]["status"] = "error"
         _jobs[job_id]["listings"][listing_index]["error"] = str(e)

@@ -1,28 +1,34 @@
 from playwright.sync_api import BrowserContext
 from rich.console import Console
 
+from scraper.internshala import dismiss_blocking_modals, apply_block_reason
+
 console = Console()
 
 
-def submit_application(context: BrowserContext, listing: dict, answers: dict) -> bool:
-    """Fill the application form and submit. Returns True on success."""
+def submit_application(context: BrowserContext, listing: dict, answers: dict) -> tuple[bool, str]:
+    """Fill the application form and submit.
+    Returns (success, message) where message explains any failure."""
     page = context.new_page()
     try:
         page.goto(listing["url"], wait_until="domcontentloaded")
         page.wait_for_selector("#apply_now_button, .top_apply_now_cta, .apply_now_button", timeout=10_000)
 
+        # Internshala pops a subscription/upsell modal that intercepts the click
+        dismiss_blocking_modals(page)
+
         apply_btn = page.query_selector("#apply_now_button, .top_apply_now_cta, .apply_now_button")
         if not apply_btn:
-            console.print("[red]Apply button not found[/red]")
-            return False
+            return False, "Apply button not found on the listing page."
 
         apply_btn.click()
         page.wait_for_timeout(3000)
 
-        # Detect profile-incomplete redirect
-        if "resume" in page.url or "profile" in page.url:
-            console.print("[yellow]Profile incomplete — complete your Internshala profile first[/yellow]")
-            return False
+        # Detect a redirect away from the listing (not logged in / profile incomplete)
+        reason = apply_block_reason(page.url)
+        if reason:
+            console.print(f"[yellow]{reason}[/yellow]")
+            return False, reason
 
         has_questions = bool(answers)
 
@@ -46,14 +52,14 @@ def submit_application(context: BrowserContext, listing: dict, answers: dict) ->
             submit_btn.click()
             page.wait_for_timeout(3000)
             console.print(f"[green]Submitted:[/green] {listing['title']} @ {listing['company']}")
-            return True
+            return True, "Submitted successfully."
         else:
-            console.print("[red]Submit button not found[/red]")
-            return False
+            return False, "Submit button not found — the apply form may have changed."
 
     except Exception as e:
-        console.print(f"[red]Error submitting {listing['url']}: {e}[/red]")
-        return False
+        msg = f"Error submitting: {e}"
+        console.print(f"[red]{msg} ({listing['url']})[/red]")
+        return False, msg
     finally:
         page.close()
 

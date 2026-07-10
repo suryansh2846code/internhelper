@@ -82,10 +82,11 @@ def main():
             should_submit, final_answers = review_application(listing, answers)
 
             if should_submit:
-                success = submit_application(context, listing, final_answers)
+                success, msg = submit_application(context, listing, final_answers)
                 if success:
                     submitted += 1
                 else:
+                    console.print(f"[yellow]{msg}[/yellow]")
                     skipped += 1
             else:
                 console.print("[yellow]Skipped.[/yellow]")
