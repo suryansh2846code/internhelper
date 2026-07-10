@@ -175,7 +175,7 @@ def _run_multi_search(job_id: str, params: MultiSearchParams):
     try:
         from playwright.sync_api import sync_playwright
         from auth.session import get_context
-        from scraper.internshala import search_internships, get_listing_details
+        from scraper.internshala import search_internships
 
         seen_urls: set[str] = set()
         all_listings: list[dict] = []
@@ -192,22 +192,19 @@ def _run_multi_search(job_id: str, params: MultiSearchParams):
                     "stipend_min": params.stipend_min,
                     "max_listings": params.max_per_role,
                 }
+                # We only collect listings + direct links here — no clicking Apply.
+                # Applications are done manually on Internshala (custom per-listing
+                # questions, resume upload, laptop/internet checks, etc.).
                 raw = search_internships(context, filters)
                 for r in raw:
                     if r["url"] in seen_urls:
                         continue
                     seen_urls.add(r["url"])
-                    details = get_listing_details(context, r["url"])
                     all_listings.append({
                         **r,
-                        "jd": details["jd"],
-                        "questions": details["questions"],
-                        "profile_incomplete": details.get("profile_incomplete", False),
                         "matched_role": role,
                         "resume_path": resume_data["path"],
-                        "status": "pending",
-                        "answers": {},
-                        "final_answers": {},
+                        "status": "link",
                     })
 
             context.browser.close()

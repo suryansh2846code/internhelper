@@ -238,40 +238,15 @@ function setFilter(role, listings) {
 }
 
 function listingHTML(l, i) {
-  const badge   = `<span class="listing-badge badge-${l.status}">${badgeLabel(l.status)}</span>`;
   const roleTag = l.matched_role ? `<span class="role-tag">${l.matched_role}</span>` : '';
-  const qCount  = l.questions?.length ?? 0;
 
-  let actions = '';
-  if (l.status === 'pending' && qCount > 0)
-    actions = `<button class="btn-sm btn-generate" onclick="generateAnswers(${i})">Generate</button>`;
-  else if (l.status === 'pending' && l.profile_incomplete)
-    actions = `<a href="https://internshala.com/student/resume" target="_blank" class="btn-sm btn-skip" style="text-decoration:none">Complete profile ↗</a>`;
-  else if (l.status === 'pending' && qCount === 0)
-    actions = `<button class="btn-sm btn-approve" onclick="directApply(${i})">Apply directly</button>`;
-  else if (l.status === 'generating')
-    actions = `<span class="spinner"></span>`;
-  else if (l.status === 'ready')
-    actions = `<button class="btn-sm btn-approve" onclick="openReview(${i})">Review & Submit</button>`;
-  else if (l.status === 'submitting')
-    actions = `<span class="spinner"></span>Submitting…`;
-  else if (l.status === 'submitted')
-    actions = `<span style="color:var(--green)">✓ Submitted</span>`;
-  else if (l.status === 'skipped')
-    actions = `<span style="color:var(--muted)">Skipped</span>`;
-  else if (l.status === 'error')
-    actions = `<span style="color:var(--red)" title="${l.error || ''}">✗ Error</span>`;
-
-  const qLabel = l.profile_incomplete
-    ? `<span style="color:var(--yellow);font-size:12px">⚠ Complete Internshala profile to apply</span>`
-    : `<span class="listing-sub">${qCount} question${qCount !== 1 ? 's' : ''}${qCount === 0 ? ' · one-click apply' : ''}</span>`;
+  const actions = `<a href="${l.url}" target="_blank" rel="noopener"
+      class="btn-sm btn-approve" style="text-decoration:none">Apply on Internshala ↗</a>`;
 
   return `
     <div class="listing-meta">
       <span class="listing-title">${roleTag}${l.title}</span>
       <span class="listing-sub">${l.company} · ${l.stipend}</span>
-      ${qLabel}
-      ${badge}
     </div>
     <div class="listing-actions">${actions}</div>`;
 }
