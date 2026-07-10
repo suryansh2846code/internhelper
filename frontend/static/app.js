@@ -2,6 +2,66 @@
 let currentJobId = null;
 let pollTimer    = null;
 let activeFilter = 'all';   // role filter for results
+let authPollTimer = null;
+
+// ── Internshala login ─────────────────────────────────────────────────────────
+async function relogin() {
+  const btn = document.getElementById('relogin-btn');
+  const el  = document.getElementById('auth-status');
+  btn.disabled = true;
+  el.textContent = 'Opening browser…';
+  el.style.color = 'var(--muted)';
+  try {
+    await fetch('/api/relogin', { method: 'POST' });
+  } catch {
+    el.textContent = '✗ Could not start login';
+    el.style.color = 'var(--red)';
+    btn.disabled = false;
+    return;
+  }
+  el.textContent = 'Solve the CAPTCHA in the browser window…';
+  if (authPollTimer) clearInterval(authPollTimer);
+  authPollTimer = setInterval(pollAuth, 2000);
+}
+
+async function pollAuth() {
+  let s;
+  try { s = await (await fetch('/api/auth/status')).json(); }
+  catch { return; }
+  const btn = document.getElementById('relogin-btn');
+  const el  = document.getElementById('auth-status');
+
+  if (s.status === 'logging_in') return;
+  clearInterval(authPollTimer);
+  btn.disabled = false;
+
+  if (s.status === 'ready') {
+    el.textContent = '✓ Logged in';
+    el.style.color = 'var(--green)';
+  } else if (s.status === 'error') {
+    el.textContent = '✗ Login failed (timed out?) — try again';
+    el.style.color = 'var(--red)';
+  }
+}
+
+// Reflect whether a session file already exists on page load
+(async () => {
+  try {
+    const s = await (await fetch('/api/auth/status')).json();
+    const el = document.getElementById('auth-status');
+    if (s.status === 'logging_in') {
+      el.textContent = 'Solve the CAPTCHA in the browser window…';
+      document.getElementById('relogin-btn').disabled = true;
+      authPollTimer = setInterval(pollAuth, 2000);
+    } else if (s.has_session) {
+      el.textContent = 'Session saved';
+      el.style.color = 'var(--muted)';
+    } else {
+      el.textContent = 'Not logged in';
+      el.style.color = 'var(--yellow)';
+    }
+  } catch {}
+})();
 
 // ── Resume upload ─────────────────────────────────────────────────────────────
 document.getElementById('resume-file').addEventListener('change', async (e) => {

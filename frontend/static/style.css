@@ -33,6 +33,25 @@ header {
 }
 .logo { font-size: 20px; font-weight: 700; letter-spacing: -0.5px; }
 .tagline { color: var(--muted); font-size: 13px; }
+.header-auth {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.header-auth .status-msg { margin-top: 0; }
+.btn-relogin {
+  background: var(--surface2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.btn-relogin:hover { border-color: var(--accent); }
+.btn-relogin:disabled { opacity: .5; cursor: not-allowed; }
 
 main { max-width: 900px; margin: 32px auto; padding: 0 24px; }
 

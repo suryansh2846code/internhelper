@@ -20,6 +20,9 @@ _resumes: dict[str, dict] = {}
 # job_id -> { status, listings, error }
 _jobs: dict[str, dict] = {}
 
+# Internshala login state: status is idle | logging_in | ready | error
+_auth: dict = {"status": "idle", "error": None}
+
 
 # ── Pydantic models ───────────────────────────────────────────────────────────
 
@@ -44,6 +47,24 @@ class AnswerEdit(BaseModel):
 async def index():
     with open("frontend/index.html", "r") as f:
         return f.read()
+
+
+# ── Routes: Auth / session ────────────────────────────────────────────────────
+
+@app.get("/api/auth/status")
+async def auth_status():
+    import config as _config
+    return {**_auth, "has_session": os.path.exists(_config.SESSION_PATH)}
+
+
+@app.post("/api/relogin")
+async def relogin(background_tasks: BackgroundTasks):
+    if _auth["status"] == "logging_in":
+        return {"status": "logging_in"}
+    _auth["status"] = "logging_in"
+    _auth["error"] = None
+    background_tasks.add_task(_relogin_task)
+    return {"status": "logging_in"}
 
 
 # ── Routes: Resume management ─────────────────────────────────────────────────
@@ -153,6 +174,29 @@ async def submit_application(body: AnswerEdit, background_tasks: BackgroundTasks
 
 
 # ── Background tasks ──────────────────────────────────────────────────────────
+
+def _relogin_task():
+    """Open a headed browser, let the user solve the CAPTCHA, save the session."""
+    try:
+        import config as _config
+        from playwright.sync_api import sync_playwright
+        from auth.session import _login_with_captcha_pause
+
+        if os.path.exists(_config.SESSION_PATH):
+            os.remove(_config.SESSION_PATH)
+
+        with sync_playwright() as pw:
+            browser = pw.chromium.launch(headless=False)
+            context = browser.new_context()
+            _login_with_captcha_pause(context)
+            context.storage_state(path=_config.SESSION_PATH)
+            browser.close()
+
+        _auth["status"] = "ready"
+    except Exception as e:
+        _auth["status"] = "error"
+        _auth["error"] = str(e)
+
 
 def _extract_keywords_task(role: str):
     try:
