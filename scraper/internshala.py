@@ -73,9 +73,27 @@ def search_internships(context: BrowserContext, filters: dict) -> list[dict]:
     return listings
 
 
+def _goto_with_retry(page, url: str, attempts: int = 3) -> bool:
+    """Navigate to url, retrying on transient aborts (net::ERR_ABORTED).
+    Returns True if the page loaded, False if all attempts failed."""
+    for i in range(attempts):
+        try:
+            page.goto(url, wait_until="domcontentloaded", timeout=30_000)
+            return True
+        except Exception as e:
+            if "ERR_ABORTED" in str(e) or "Timeout" in str(e):
+                page.wait_for_timeout(1500 * (i + 1))
+                continue
+            raise
+    return False
+
+
 def get_listing_details(context: BrowserContext, url: str) -> dict:
     page = context.new_page()
-    page.goto(url, wait_until="domcontentloaded")
+    if not _goto_with_retry(page, url):
+        print(f"[scraper] Failed to load listing after retries: {url}")
+        page.close()
+        return {"jd": "", "questions": []}
 
     try:
         page.wait_for_selector("#details_container", timeout=15_000)
