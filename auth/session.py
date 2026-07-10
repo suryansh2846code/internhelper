@@ -35,21 +35,26 @@ def _session_valid(context: BrowserContext) -> bool:
         page.close()
 
 
-def _login_with_captcha_pause(context: BrowserContext):
+def _login_with_captcha_pause(context: BrowserContext, timeout_ms: int = 180_000):
     page = context.new_page()
     page.goto(f"{config.INTERNSHALA_BASE_URL}/login/user")
 
     # Fill credentials automatically
-    page.wait_for_selector("#email", timeout=10_000)
+    page.wait_for_selector("#email", timeout=15_000)
     page.fill("#email", config.INTERNSHALA_EMAIL)
     page.fill("#password", config.INTERNSHALA_PASSWORD)
 
+    minutes = round(timeout_ms / 60_000, 1)
     print("\n" + "="*55)
     print("  Browser is open with your credentials filled in.")
     print("  Please solve the CAPTCHA and click Login.")
-    print("  This window will close automatically after login.")
+    print(f"  You have up to {minutes} minutes; the window closes on success.")
     print("="*55 + "\n")
 
-    # Wait up to 2 minutes for user to solve CAPTCHA and land on dashboard
-    page.wait_for_url("**/student/dashboard**", timeout=120_000)
+    # Login is done once we leave the login/registration pages (Internshala may
+    # land on the dashboard, homepage, or elsewhere — don't require an exact URL).
+    page.wait_for_url(
+        lambda url: "/login" not in url and "/registration" not in url,
+        timeout=timeout_ms,
+    )
     page.close()
