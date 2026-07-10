@@ -100,17 +100,27 @@ def get_listing_details(context: BrowserContext, url: str) -> dict:
 
 
 def _build_search_url(filters: dict) -> str:
-    base  = f"{config.INTERNSHALA_BASE_URL}/internships"
-    parts = []
+    """Build an Internshala search URL.
 
-    if kw := filters.get("keywords", "").strip():
-        slug = kw.replace(" ", "-").lower()
-        parts.append(f"keywords-{slug}")
+    Internshala uses path segments joined by '/', with the location/category
+    segment first and the keyword segment last, e.g.:
+      /internships/work-from-home-internships/keywords-react-frontend/
+      /internships/internship-in-bangalore/keywords-python/
+    Note: the old comma-joined form (keywords-x,work-from-home-internships)
+    now triggers a redirect loop, so it must not be used.
+    """
+    base = f"{config.INTERNSHALA_BASE_URL}/internships"
+    segments = []
 
     loc = filters.get("location", "").strip().lower()
     if "home" in loc or "remote" in loc or "wfh" in loc:
-        parts.append("work-from-home-internships")
+        segments.append("work-from-home-internships")
     elif loc:
-        parts.append(f"location-{loc.replace(' ', '-')}")
+        segments.append(f"internship-in-{loc.replace(' ', '-')}")
 
-    return base + ("/" + ",".join(parts) if parts else "")
+    if kw := filters.get("keywords", "").strip():
+        slug = kw.replace(" ", "-").lower()
+        segments.append(f"keywords-{slug}")
+
+    path = "/".join(segments)
+    return f"{base}/{path}/" if path else f"{base}/"
