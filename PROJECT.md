@@ -7,10 +7,18 @@ and what comes next. Written so any future session can pick up with full context
 
 ## What it is
 
-An AI-powered Internshala auto-apply tool. You upload your resume(s), it scrapes
-matching internship listings, generates tailored answers to every application
-question using an LLM, and lets you approve/edit each answer before anything is
-submitted. Human in the loop the whole way — no blind submissions.
+An AI-powered Internshala auto-apply tool. You upload your resume(s) and it
+scrapes matching internship listings, then splits them by how they can be
+applied to:
+
+- **No custom questions** → one-click **Auto-apply**: the tool opens the
+  listing, uploads your résumé into the apply form, and submits.
+- **Has custom questions** (or an incomplete profile) → a **direct link** to
+  the listing so you apply manually on Internshala, where the per-question
+  answers, laptop/internet checks and other gates live.
+
+Auto-apply runs only when you click its button on a listing — nothing is
+submitted in the background.
 
 Two interfaces exist: a command-line pipeline (`main.py`) and a web UI
 (`server.py` + `frontend/`). Both drive the same underlying Python modules.
@@ -210,15 +218,20 @@ chooses Keep / Edit / Skip. A final confirm prompt before any submission.
 
 ### apply/form_filler.py
 
-`submit_application(context, listing, answers) -> bool`
+`submit_application(context, listing, answers) -> (bool, str)`
 
-Re-navigates to the listing, clicks Apply, then either:
-- Fills textareas by matching label text to question text (for question-based
-  applications)
-- Clicks the modal's submit button directly (for zero-question applications)
+Re-navigates to the listing, clicks Apply, then:
+- Fills textareas by matching label text to question text (only when `answers`
+  is non-empty — used by the manual/question path).
+- Calls `_upload_resume(page, listing["resume_path"])`, which sets the résumé
+  file into the apply form's `input[type=file]` if one exists. A missing input
+  is fine — Internshala falls back to the résumé on the student's profile.
+- Clicks the modal's submit button.
 
-Detects the profile-incomplete redirect after clicking Apply and returns False
-immediately rather than hanging.
+Returns `(success, message)` where the message explains any failure. Detects
+the profile-incomplete / not-logged-in redirect after clicking Apply (via
+`apply_block_reason`) and returns `(False, reason)` immediately rather than
+hanging.
 
 ### server.py
 
@@ -231,6 +244,17 @@ _jobs:    dict[str, dict]   # job_id → {status, listings, error}
 
 All Playwright work runs in `BackgroundTasks` (off the async event loop).
 The frontend polls `/api/job/{id}` every 1.5 s until `status == "ready"`.
+
+`_run_multi_search` opens each found listing with `get_listing_details` to
+classify it and stores a per-listing `status`:
+- `"auto"` — no custom questions; eligible for one-click résumé auto-apply.
+- `"link"` — has custom questions, or the profile is incomplete; a `reason`
+  field explains which. Applied manually via the direct link.
+
+Because every listing is opened and its Apply button clicked during search,
+a search is slower than a link-only scrape — that is the cost of knowing the
+question-vs-no-question split up front. Auto-apply itself reuses the existing
+`/api/submit` endpoint with empty `answers`.
 
 Key endpoints:
 | Method | Path | What it does |
@@ -256,12 +280,19 @@ Flow:
    `keyword_status` values leave `"extracting"`.
 2. Search → `POST /api/search/multi` → `pollJob()` every 2 s until
    `job.status === "ready"` → `renderListings()`.
-3. Per listing:
-   - `qCount > 0` → Generate button → polls until status `"ready"` →
-     Review & Submit button → modal with editable textareas → approve/skip.
-   - `qCount === 0 && !profile_incomplete` → Apply directly button →
-     skips generation, submits immediately.
-   - `profile_incomplete` → "Complete profile ↗" link to Internshala.
+3. Per listing, `listingHTML` renders by `status`:
+   - `"auto"` → **⚡ Auto-apply (upload résumé)** button → `directApply()`
+     confirms, then POSTs to `/api/submit` with empty answers; the card polls
+     until the status leaves `"submitting"` and shows ✓ Applied / error.
+   - `"link"` → **Apply on Internshala ↗** direct link, with a note showing the
+     `reason` (e.g. "3 custom question(s) — apply manually" or "Complete your
+     Internshala profile to apply").
+   - transient states `submitting` / `submitted` / `skipped` / `error` render
+     their own inline status.
+
+The LLM answer-generation path (`generateAnswers`, the review modal,
+`answer_generator.py`) remains in the codebase but is not wired into the
+current listing UI — it is kept for a future question-aware auto-apply mode.
 
 ---
 
