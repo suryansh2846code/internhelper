@@ -299,14 +299,38 @@ function setFilter(role, listings) {
 
 function listingHTML(l, i) {
   const roleTag = l.matched_role ? `<span class="role-tag">${l.matched_role}</span>` : '';
-
-  const actions = `<a href="${l.url}" target="_blank" rel="noopener"
+  const link = `<a href="${l.url}" target="_blank" rel="noopener"
       class="btn-sm btn-approve" style="text-decoration:none">Apply on Internshala ↗</a>`;
+
+  let actions, note = '';
+  switch (l.status) {
+    case 'auto':       // no custom questions — we can upload the résumé & submit
+      actions = `<button class="btn-sm btn-approve" onclick="directApply(${i})">⚡ Auto-apply (upload résumé)</button>`;
+      note = 'No custom questions — one-click apply with your résumé';
+      break;
+    case 'submitting':
+      actions = `<span class="listing-sub"><span class="spinner"></span>Applying…</span>`;
+      break;
+    case 'submitted':
+      actions = `<span class="listing-sub" style="color:var(--green)">✓ Applied</span>`;
+      break;
+    case 'skipped':
+      actions = `<span class="listing-sub" style="color:var(--muted)">Skipped</span>`;
+      break;
+    case 'error':
+      actions = link;
+      note = `<span style="color:var(--red)">✗ ${l.error || 'Auto-apply failed'} — apply manually</span>`;
+      break;
+    default:           // 'link' — custom questions or incomplete profile
+      actions = link;
+      note = l.reason || 'Apply manually on Internshala';
+  }
 
   return `
     <div class="listing-meta">
       <span class="listing-title">${roleTag}${l.title}</span>
       <span class="listing-sub">${l.company} · ${l.stipend}</span>
+      ${note ? `<span class="listing-sub" style="font-size:11px">${note}</span>` : ''}
     </div>
     <div class="listing-actions">${actions}</div>`;
 }
@@ -318,7 +342,7 @@ function badgeLabel(s) {
 
 // ── Direct apply (0-question listings) ───────────────────────────────────────
 async function directApply(index) {
-  if (!confirm('Submit this application directly (no questions)?')) return;
+  if (!confirm('Auto-apply now? This uploads your résumé and submits the application on Internshala.')) return;
   patchListingStatus(index, 'submitting');
   await fetch('/api/submit', {
     method: 'POST',
