@@ -377,6 +377,40 @@ raw API error to a readable message and surfaces a Retry button.
 
 ---
 
+## Commit conventions
+
+This repo follows [Conventional Commits](https://www.conventionalcommits.org).
+Every commit subject starts with a **type**, optionally followed by a scope and
+an em-dash description:
+
+```
+<type>: <scope> — <short, imperative description>
+```
+
+Examples from the history:
+`feat: scraper — search Internshala listings with keyword/location URL builder`,
+`fix: correct internshala search url to avoid redirect loop`.
+
+### Commit types used
+
+| Type | When to use it |
+|------|----------------|
+| `feat` | A new feature or capability (new module, endpoint, backend, UI step). |
+| `fix` | A bug fix — corrects broken or wrong behavior. |
+| `docs` | Documentation only (this file, comments, README). |
+| `chore` | Scaffolding, config, dependencies, tooling — no app-behavior change. |
+
+Additional standard types available if needed: `refactor` (restructure without
+behavior change), `test` (add/adjust tests), `style` (formatting only),
+`perf` (performance), `build` / `ci` (build system or pipeline).
+
+The `scope` (e.g. `scraper`, `llm`, `applicant`) is optional but preferred — it
+names the module the change touches and matches the `Repo layout` above. Keep
+the description in the imperative mood ("add", "fix", "correct"), lowercase, and
+under ~72 characters. Put the *why* and details in the commit body.
+
+---
+
 ## Security notes
 
 - `.env` is gitignored. Never commit it.
