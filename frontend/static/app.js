@@ -44,6 +44,28 @@ async function pollAuth() {
   }
 }
 
+// ── Browser window control ──────────────────────────────────────────────────
+async function closeBrowser() {
+  const btn = document.getElementById('stop-browser-btn');
+  btn.disabled = true;
+  btn.textContent = 'Closing…';
+  try { await fetch('/api/browser/close', { method: 'POST' }); } catch {}
+  // The window closes once any in-flight task finishes; poll reflects it.
+  setTimeout(pollBrowser, 500);
+}
+
+async function pollBrowser() {
+  let running = false;
+  try { running = (await (await fetch('/api/browser/status')).json()).running; }
+  catch { return; }
+  const btn = document.getElementById('stop-browser-btn');
+  btn.style.display = running ? '' : 'none';
+  btn.disabled = false;
+  btn.textContent = '✕ Close browser window';
+}
+setInterval(pollBrowser, 3000);
+pollBrowser();
+
 // Reflect whether a session file already exists on page load
 (async () => {
   try {

@@ -9,8 +9,14 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from browser_session import BrowserWorker
+
 app = FastAPI(title="InternHelper")
 app.mount("/static", StaticFiles(directory="frontend/static"), name="static")
+
+# One shared browser window, reused for every search and apply (see
+# browser_session.BrowserWorker). Opened on first use, closed on demand.
+_browser = BrowserWorker()
 
 # ── In-memory stores ──────────────────────────────────────────────────────────
 
@@ -65,6 +71,21 @@ async def relogin(background_tasks: BackgroundTasks):
     _auth["error"] = None
     background_tasks.add_task(_relogin_task)
     return {"status": "logging_in"}
+
+
+# ── Routes: Browser window control ────────────────────────────────────────────
+
+@app.get("/api/browser/status")
+async def browser_status():
+    return {"running": _browser.is_running()}
+
+
+@app.post("/api/browser/close")
+async def browser_close(background_tasks: BackgroundTasks):
+    # Close in the background: if a task is mid-flight the window shuts down once
+    # it finishes, so we don't block the request waiting on it.
+    background_tasks.add_task(_browser.close)
+    return {"ok": True}
 
 
 # ── Routes: Resume management ─────────────────────────────────────────────────
@@ -182,6 +203,10 @@ def _relogin_task():
         from playwright.sync_api import sync_playwright
         from auth.session import _login_with_captcha_pause
 
+        # Re-login replaces the saved session, so the shared browser (built from
+        # the old session) is stale — close it before logging in anew.
+        _browser.close()
+
         if os.path.exists(_config.SESSION_PATH):
             os.remove(_config.SESSION_PATH)
 
@@ -217,16 +242,12 @@ def _extract_keywords_task(role: str):
 
 def _run_multi_search(job_id: str, params: MultiSearchParams):
     try:
-        from playwright.sync_api import sync_playwright
-        from auth.session import get_context
         from scraper.internshala import search_internships, get_listing_details
 
         seen_urls: set[str] = set()
-        all_listings: list[dict] = []
 
-        with sync_playwright() as pw:
-            context = get_context(pw)
-
+        def work(context):
+            listings: list[dict] = []
             for role, resume_data in _resumes.items():
                 # Fall back to role name if LLM extraction didn't produce keywords
                 keywords = " ".join(resume_data.get("keywords", [])) or role
@@ -256,7 +277,7 @@ def _run_multi_search(job_id: str, params: MultiSearchParams):
                     else:
                         status, reason = "auto", ""
 
-                    all_listings.append({
+                    listings.append({
                         **r,
                         "matched_role": role,
                         "resume_path": resume_data["path"],
@@ -266,10 +287,11 @@ def _run_multi_search(job_id: str, params: MultiSearchParams):
                         "reason": reason,
                         "status": status,
                     })
+            return listings
 
-            context.browser.close()
-
-        _jobs[job_id]["listings"] = all_listings
+        # Runs on the shared browser thread; the window stays open afterwards so
+        # a following auto-apply reuses it instead of opening a new one.
+        _jobs[job_id]["listings"] = _browser.run(work)
         _jobs[job_id]["status"] = "ready"
     except Exception as e:
         _jobs[job_id]["status"] = "error"
@@ -301,15 +323,12 @@ def _run_generate(job_id: str, listing_index: int):
 
 def _run_submit(job_id: str, listing_index: int):
     try:
-        from playwright.sync_api import sync_playwright
-        from auth.session import get_context
         from apply.form_filler import submit_application
 
         listing = _jobs[job_id]["listings"][listing_index]
-        with sync_playwright() as pw:
-            context = get_context(pw)
-            ok, msg = submit_application(context, listing, listing["final_answers"])
-            context.browser.close()
+        ok, msg = _browser.run(
+            lambda context: submit_application(context, listing, listing["final_answers"])
+        )
         listing["status"] = "submitted" if ok else "error"
         if not ok:
             listing["error"] = msg
