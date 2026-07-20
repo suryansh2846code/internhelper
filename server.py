@@ -68,7 +68,7 @@ class MultiSearchParams(BaseModel):
     location: str = "work from home"
     stipend_min: int = 0
     max_per_role: int = 10
-    platform: str | None = None  # which job platform; defaults to Internshala
+    platforms: list[str] | None = None  # platforms to search; None = all
 
 class KeywordsUpdate(BaseModel):
     keywords: list[str]
@@ -391,86 +391,67 @@ def _extract_keywords_task(role: str):
 
 def _run_multi_search(job_id: str, params: MultiSearchParams):
     try:
-        from adapters import get_adapter
+        from adapters import get_adapter, list_platforms
 
-        adapter = get_adapter(params.platform)
+        platform_names = params.platforms or [p["name"] for p in list_platforms()]
         seen_urls: set[str] = set()
 
         def work(context):
             listings: list[dict] = []
-            for role, resume_data in _resumes.items():
-                # Fall back to role name if LLM extraction didn't produce keywords
-                keywords = " ".join(resume_data.get("keywords", [])) or role
-                filters = {
-                    "keywords": keywords,
-                    "location": params.location,
-                    "stipend_min": params.stipend_min,
-                    "max_listings": params.max_per_role,
-                }
-                raw = adapter.search(context, filters)
-                for r in raw:
-                    if r["url"] in seen_urls:
-                        continue
-                    seen_urls.add(r["url"])
+            for platform in platform_names:
+                adapter = get_adapter(platform)
+                for role, resume_data in _resumes.items():
+                    # Fall back to role name if LLM extraction gave no keywords
+                    keywords = " ".join(resume_data.get("keywords", [])) or role
+                    filters = {
+                        "keywords": keywords,
+                        "location": params.location,
+                        "stipend_min": params.stipend_min,
+                        "max_listings": params.max_per_role,
+                    }
+                    base = {"platform": adapter.name, "matched_role": role,
+                            "resume_path": resume_data["path"]}
 
-                    # Already applied in a past session? Show it as done and skip
-                    # opening it — saves an Apply click (which risks throttling).
-                    if r["url"] in _applied:
-                        listings.append({
-                            **r,
-                            "platform": adapter.name,
-                            "matched_role": role,
-                            "resume_path": resume_data["path"],
-                            "jd": "", "questions": [], "profile_incomplete": False,
-                            "reason": f"Already applied on {_applied[r['url']].get('applied_at', '')[:10]}",
-                            "status": "submitted",
-                        })
-                        continue
+                    for r in adapter.search(context, filters):
+                        if r["url"] in seen_urls:
+                            continue
+                        seen_urls.add(r["url"])
 
-                    # Search-only platform (no auto-apply yet): hand off as a
-                    # manual link without opening the listing.
-                    if not adapter.supports_auto_apply:
-                        listings.append({
-                            **r,
-                            "platform": adapter.name,
-                            "matched_role": role,
-                            "resume_path": resume_data["path"],
-                            "jd": "", "questions": [], "profile_incomplete": False,
-                            "reason": f"Apply on {adapter.label}",
-                            "status": "link",
-                        })
-                        continue
+                        # Already applied? Show as done, don't reopen it.
+                        if r["url"] in _applied:
+                            listings.append({**r, **base,
+                                "jd": "", "questions": [], "profile_incomplete": False,
+                                "reason": f"Already applied on {_applied[r['url']].get('applied_at', '')[:10]}",
+                                "status": "submitted"})
+                            continue
 
-                    # Pace classification so rapid Apply clicks don't get the
-                    # platform session temporarily blocked.
-                    time.sleep(config.SEARCH_CLASSIFY_DELAY)
+                        # Search-only platform: hand off as a manual link.
+                        if not adapter.supports_auto_apply:
+                            listings.append({**r, **base,
+                                "jd": "", "questions": [], "profile_incomplete": False,
+                                "reason": f"Apply on {adapter.label}", "status": "link"})
+                            continue
 
-                    # Open the listing to classify it: no custom questions -> we
-                    # can auto-apply by uploading the résumé; questions (or an
-                    # incomplete profile) -> hand back the direct link instead.
-                    details = adapter.classify(context, r["url"])
-                    questions = details.get("questions", [])
-                    profile_incomplete = details.get("profile_incomplete", False)
+                        # Pace classification to avoid throttling.
+                        time.sleep(config.SEARCH_CLASSIFY_DELAY)
 
-                    if profile_incomplete:
-                        status, reason = "link", "Complete your Internshala profile to apply"
-                    elif questions:
-                        status, reason = "link", f"{len(questions)} custom question(s) — apply manually"
-                    else:
-                        status, reason = "auto", ""
+                        details = adapter.classify(context, r["url"])
+                        questions = details.get("questions", [])
+                        profile_incomplete = details.get("profile_incomplete", False)
 
-                    listings.append({
-                        **r,
-                        "platform": adapter.name,
-                        "matched_role": role,
-                        "resume_path": resume_data["path"],
-                        "skills": resume_data.get("keywords", []),
-                        "jd": details.get("jd", ""),
-                        "questions": questions,
-                        "profile_incomplete": profile_incomplete,
-                        "reason": reason,
-                        "status": status,
-                    })
+                        if profile_incomplete:
+                            status, reason = "link", f"Complete your {adapter.label} profile to apply"
+                        elif questions:
+                            status, reason = "link", f"{len(questions)} custom question(s) — apply manually"
+                        else:
+                            status, reason = "auto", ""
+
+                        listings.append({**r, **base,
+                            "skills": resume_data.get("keywords", []),
+                            "jd": details.get("jd", ""),
+                            "questions": questions,
+                            "profile_incomplete": profile_incomplete,
+                            "reason": reason, "status": status})
             return listings
 
         # Runs on the shared browser thread; the window stays open afterwards so

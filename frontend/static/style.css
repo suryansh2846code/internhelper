@@ -153,6 +153,21 @@ input:focus { border-color: var(--accent); }
 .bulk-check input { width: auto; margin: 0; cursor: pointer; }
 .bulk-progress { margin-left: auto; font-size: 13px; color: var(--muted); font-weight: 600; }
 
+.platform-toggles { display: flex; gap: 14px; flex-wrap: wrap; padding-top: 4px; }
+.platform-toggle {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 13px; color: var(--fg, #e6e8f0); min-width: 0; cursor: pointer;
+}
+.platform-toggle input { width: auto; margin: 0; cursor: pointer; }
+
+.platform-tag {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .04em; padding: 2px 7px; border-radius: 5px; margin-right: 6px;
+  color: #000;
+}
+.platform-internshala { background: #00a5ec; }
+.platform-unstop { background: #f5c518; }
+
 .applied-row {
   display: flex;
   align-items: center;

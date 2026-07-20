@@ -291,17 +291,24 @@ window.addEventListener('load', async () => {
 async function loadPlatforms() {
   try {
     const platforms = await (await fetch('/api/platforms')).json();
-    const sel = document.getElementById('platform');
-    if (sel) sel.innerHTML = platforms.map(p =>
-      `<option value="${p.name}">${p.label}${p.supports_auto_apply ? '' : ' (search only)'}</option>`
-    ).join('');
-    // A "Log into X" button for each platform that has a manual login (not Internshala)
+    // Platform toggles — search several at once; all on by default.
+    const toggles = document.getElementById('platform-toggles');
+    if (toggles) toggles.innerHTML = platforms.map(p => `
+      <label class="platform-toggle">
+        <input type="checkbox" value="${p.name}" checked>
+        ${p.label}${p.supports_auto_apply ? '' : ' (search only)'}
+      </label>`).join('');
+    // A "Log into X" button for each platform with a manual login (not Internshala)
     const box = document.getElementById('platform-logins');
     if (box) box.innerHTML = platforms
       .filter(p => p.login_url && p.name !== 'internshala')
       .map(p => `<button class="btn-relogin" onclick="loginPlatform('${p.name}','${p.label}')">Log into ${p.label}</button>`)
       .join('');
   } catch {}
+}
+
+function selectedPlatforms() {
+  return [...document.querySelectorAll('#platform-toggles input:checked')].map(c => c.value);
 }
 
 async function loginPlatform(name, label) {
@@ -322,11 +329,13 @@ async function startSearch() {
   statusEl.innerHTML = '<span class="spinner"></span>Logging in & searching all roles…';
   stopPolling();
 
+  const platforms = selectedPlatforms();
+  if (!platforms.length) { statusEl.textContent = 'Select at least one platform.'; btn.disabled = false; return; }
   const body = {
     location:     document.getElementById('location').value.trim(),
     stipend_min:  parseInt(document.getElementById('stipend').value) || 0,
     max_per_role: parseInt(document.getElementById('max').value) || 10,
-    platform:     document.getElementById('platform')?.value || 'internshala',
+    platforms,
   };
 
   const res  = await fetch('/api/search/multi', {
@@ -472,6 +481,7 @@ function platformLabel(l) {
 
 function listingHTML(l, i) {
   const roleTag = l.matched_role ? `<span class="role-tag">${l.matched_role}</span>` : '';
+  const platTag = l.platform ? `<span class="platform-tag platform-${l.platform}">${platformLabel(l)}</span>` : '';
   const link = `<a href="${l.url}" target="_blank" rel="noopener"
       class="btn-sm btn-approve" style="text-decoration:none">Apply on ${platformLabel(l)} ↗</a>`;
 
@@ -503,7 +513,7 @@ function listingHTML(l, i) {
 
   return `
     <div class="listing-meta">
-      <span class="listing-title">${roleTag}${l.title}</span>
+      <span class="listing-title">${platTag}${roleTag}${l.title}</span>
       <span class="listing-sub">${l.company} · ${l.stipend}</span>
       ${note ? `<span class="listing-sub" style="font-size:11px">${note}</span>` : ''}
     </div>
