@@ -25,6 +25,7 @@ class UnstopAdapter(PlatformAdapter):
     name = "unstop"
     label = "Unstop"
     supports_auto_apply = False  # flip True once the apply flow is validated
+    login_url = "https://unstop.com/login"
 
     def search(self, context: BrowserContext, filters: dict) -> list[dict]:
         # Load Unstop once so the request context picks up its cookies/CSRF.

@@ -17,8 +17,9 @@ def get_adapter(name: str | None = None) -> PlatformAdapter:
 
 
 def list_platforms() -> list[dict]:
-    """[{name, label, supports_auto_apply}] of every platform, for the UI."""
+    """[{name, label, supports_auto_apply, login_url}] of every platform."""
     return [
-        {"name": a.name, "label": a.label, "supports_auto_apply": a.supports_auto_apply}
+        {"name": a.name, "label": a.label,
+         "supports_auto_apply": a.supports_auto_apply, "login_url": a.login_url}
         for a in _ADAPTERS.values()
     ]

@@ -18,6 +18,9 @@ class PlatformAdapter(ABC):
     # Whether this platform supports one-click auto-apply. When False, listings
     # are surfaced as manual "Apply on <platform>" links (search-only support).
     supports_auto_apply: bool = True
+    # Login page URL for the manual "Log into <platform>" flow (None = no
+    # separate login button; e.g. Internshala uses its own credential flow).
+    login_url: str | None = None
 
     @abstractmethod
     def search(self, context: BrowserContext, filters: dict) -> list[dict]:

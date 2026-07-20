@@ -119,6 +119,21 @@ async def relogin(background_tasks: BackgroundTasks):
     return {"status": "logging_in"}
 
 
+@app.post("/api/login/{platform}")
+async def login_platform(platform: str, background_tasks: BackgroundTasks):
+    """Manual login for a platform (e.g. Unstop), preserving other logins."""
+    from adapters import get_adapter
+    adapter = get_adapter(platform)
+    if not adapter.login_url:
+        return JSONResponse({"error": f"{adapter.label} has no manual login."}, status_code=400)
+    if _auth["status"] == "logging_in":
+        return {"status": "logging_in"}
+    _auth["status"] = "logging_in"
+    _auth["error"] = None
+    background_tasks.add_task(_platform_login_task, adapter.login_url)
+    return {"status": "logging_in"}
+
+
 # ── Routes: Browser window control ────────────────────────────────────────────
 
 @app.get("/api/browser/status")
@@ -317,6 +332,36 @@ def _relogin_task():
             context = browser.new_context()
             _login_with_captcha_pause(context)
             context.storage_state(path=_config.SESSION_PATH)
+            browser.close()
+
+        _auth["status"] = "ready"
+    except Exception as e:
+        _auth["status"] = "error"
+        _auth["error"] = str(e)
+
+
+def _platform_login_task(login_url: str):
+    """Open the platform's login page headed, wait for the user to finish, then
+    save the combined session (preserving other platforms' logins)."""
+    try:
+        from playwright.sync_api import sync_playwright
+
+        # Free the shared browser so login gets a clean, focused window.
+        _browser.close()
+
+        with sync_playwright() as pw:
+            browser = pw.chromium.launch(headless=False)
+            kwargs = {"storage_state": config.SESSION_PATH} if os.path.exists(config.SESSION_PATH) else {}
+            context = browser.new_context(**kwargs)
+            page = context.new_page()
+            page.goto(login_url, wait_until="domcontentloaded")
+            try:
+                # Login is done once we leave the /login page.
+                page.wait_for_url(lambda u: "/login" not in u.lower(), timeout=240_000)
+                page.wait_for_timeout(3000)
+            except Exception:
+                pass
+            context.storage_state(path=config.SESSION_PATH)
             browser.close()
 
         _auth["status"] = "ready"

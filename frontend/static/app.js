@@ -292,11 +292,26 @@ async function loadPlatforms() {
   try {
     const platforms = await (await fetch('/api/platforms')).json();
     const sel = document.getElementById('platform');
-    if (!sel) return;
-    sel.innerHTML = platforms.map(p =>
+    if (sel) sel.innerHTML = platforms.map(p =>
       `<option value="${p.name}">${p.label}${p.supports_auto_apply ? '' : ' (search only)'}</option>`
     ).join('');
+    // A "Log into X" button for each platform that has a manual login (not Internshala)
+    const box = document.getElementById('platform-logins');
+    if (box) box.innerHTML = platforms
+      .filter(p => p.login_url && p.name !== 'internshala')
+      .map(p => `<button class="btn-relogin" onclick="loginPlatform('${p.name}','${p.label}')">Log into ${p.label}</button>`)
+      .join('');
   } catch {}
+}
+
+async function loginPlatform(name, label) {
+  const el = document.getElementById('auth-status');
+  el.textContent = `Opening ${label} login…`;
+  el.style.color = 'var(--muted)';
+  try { await fetch(`/api/login/${name}`, { method: 'POST' }); } catch {}
+  el.textContent = `Log into ${label} in the browser window…`;
+  if (authPollTimer) clearInterval(authPollTimer);
+  authPollTimer = setInterval(pollAuth, 2000);
 }
 
 // ── Search ────────────────────────────────────────────────────────────────────
