@@ -274,12 +274,13 @@ input:focus { border-color: var(--accent); }
 #resume-cards .resume-card:nth-child(6n+4)::after { --rot: -15deg; background-image: url('/assets/resume-memes/4.png'); }
 #resume-cards .resume-card:nth-child(6n+5)::after { --rot: 7deg;   background-image: url('/assets/resume-memes/5.png'); }
 #resume-cards .resume-card:nth-child(6n)::after   { --rot: -19deg; background-image: url('/assets/resume-memes/6.png'); }
-#resume-cards .resume-card:nth-child(6n+1) { background-color: var(--yellow); }
-#resume-cards .resume-card:nth-child(6n+2) { background-color: var(--green); }
-#resume-cards .resume-card:nth-child(6n+3) { background-color: var(--pink); }
-#resume-cards .resume-card:nth-child(6n+4) { background-color: var(--blue); }
-#resume-cards .resume-card:nth-child(6n+5) { background-color: var(--orange); }
-#resume-cards .resume-card:nth-child(6n)   { background-color: var(--accent); }
+/* Résumé cards use soft pastel shades — distinct from the bold internship tiles */
+#resume-cards .resume-card:nth-child(6n+1) { background-color: #ffe08a; }
+#resume-cards .resume-card:nth-child(6n+2) { background-color: #9ff0cf; }
+#resume-cards .resume-card:nth-child(6n+3) { background-color: #ffc2dc; }
+#resume-cards .resume-card:nth-child(6n+4) { background-color: #a9dcff; }
+#resume-cards .resume-card:nth-child(6n+5) { background-color: #ffcf9e; }
+#resume-cards .resume-card:nth-child(6n)   { background-color: #cdbcff; }
 .resume-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; padding-left: 26px; }
 .resume-role { font-weight: 800; font-size: 15px; text-transform: capitalize; color: #000; }
 .resume-filename { color: rgba(0,0,0,.6); font-size: 12px; font-weight: 600; }
