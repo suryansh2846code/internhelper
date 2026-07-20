@@ -66,6 +66,59 @@ async function pollBrowser() {
 setInterval(pollBrowser, 3000);
 pollBrowser();
 
+// ── Applied history ─────────────────────────────────────────────────────────
+async function refreshAppliedCount() {
+  try {
+    const items = await (await fetch('/api/applied')).json();
+    document.getElementById('applied-btn').textContent = `📋 Applied (${items.length})`;
+    return items;
+  } catch { return []; }
+}
+
+async function toggleApplied() {
+  const panel = document.getElementById('applied-panel');
+  if (!panel.classList.contains('hidden')) { panel.classList.add('hidden'); return; }
+  const items = await refreshAppliedCount();
+  renderApplied(items);
+  panel.classList.remove('hidden');
+  panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function renderApplied(items) {
+  const list = document.getElementById('applied-list');
+  if (!items.length) {
+    list.innerHTML = `<p class="step-hint">No applications yet. Auto-applied listings show up here.</p>`;
+    return;
+  }
+  list.innerHTML = items.map(it => `
+    <div class="applied-row">
+      <div class="applied-meta">
+        <span class="applied-title">
+          ${it.role ? `<span class="role-tag">${it.role}</span>` : ''}
+          <a href="${it.url}" target="_blank" rel="noopener">${it.title || 'Listing'} ↗</a>
+        </span>
+        <span class="listing-sub">${it.company || ''}${it.stipend ? ` · ${it.stipend}` : ''} · applied ${(it.applied_at || '').slice(0, 10)}</span>
+      </div>
+      <button class="btn-sm btn-skip" onclick="removeApplied('${it.url.replace(/'/g, "\\'")}')">Remove</button>
+    </div>`).join('');
+}
+
+async function removeApplied(url) {
+  await fetch('/api/applied/remove', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url }),
+  });
+  renderApplied(await refreshAppliedCount());
+}
+
+async function clearApplied() {
+  if (!confirm('Clear the entire applied history? Listings will become applyable again.')) return;
+  await fetch('/api/applied', { method: 'DELETE' });
+  renderApplied(await refreshAppliedCount());
+}
+
+refreshAppliedCount();
+
 // Reflect whether a session file already exists on page load
 (async () => {
   try {
@@ -373,6 +426,7 @@ async function applyBatch(indices) {
     if (!pending && !(j.batch && j.batch.running)) {
       clearInterval(t);
       selected.clear();
+      refreshAppliedCount();
       setTimeout(() => renderListings(j.listings), 2500);  // let the summary linger
     }
   }, 1500);
@@ -442,6 +496,7 @@ async function directApply(index) {
     if (j.listings[index].status !== 'submitting') {
       clearInterval(t);
       refreshListing(index, j.listings[index], j.listings);
+      refreshAppliedCount();
     }
   }, 1500);
 }

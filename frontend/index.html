@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>InternHelper</title>
-  <link rel="stylesheet" href="/static/style.css?v=4" />
+  <link rel="stylesheet" href="/static/style.css?v=5" />
 </head>
 <body>
   <header>
@@ -12,12 +12,22 @@
     <span class="tagline">AI-powered Internshala applications</span>
     <div class="header-auth">
       <span id="auth-status" class="status-msg"></span>
+      <button id="applied-btn" class="btn-relogin" onclick="toggleApplied()">📋 Applied (0)</button>
       <button id="stop-browser-btn" class="btn-relogin" onclick="closeBrowser()" style="display:none">✕ Close browser window</button>
       <button id="relogin-btn" class="btn-relogin" onclick="relogin()">Re-login to Internshala</button>
     </div>
   </header>
 
   <main>
+
+    <!-- APPLIED HISTORY -->
+    <section id="applied-panel" class="card hidden">
+      <div class="results-header">
+        <h2>Applied history</h2>
+        <button class="btn-sm btn-skip" onclick="clearApplied()">Clear all</button>
+      </div>
+      <div id="applied-list"></div>
+    </section>
 
     <!-- STEP 1: RESUME MANAGER -->
     <section class="card" id="resume-panel">
@@ -84,6 +94,6 @@
     </div>
   </div>
 
-  <script src="/static/app.js?v=4"></script>
+  <script src="/static/app.js?v=5"></script>
 </body>
 </html>

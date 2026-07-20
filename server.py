@@ -52,6 +52,8 @@ def _mark_applied(listing: dict) -> None:
     _applied[listing["url"]] = {
         "title": listing.get("title", ""),
         "company": listing.get("company", ""),
+        "role": listing.get("matched_role", ""),
+        "stipend": listing.get("stipend", ""),
         "applied_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
     }
     store.save_applied(_applied)
@@ -79,6 +81,9 @@ class AnswerEdit(BaseModel):
 class BatchSubmit(BaseModel):
     job_id: str
     listing_indices: list[int]
+
+class AppliedRemove(BaseModel):
+    url: str
 
 
 # ── Routes: UI ────────────────────────────────────────────────────────────────
@@ -119,6 +124,32 @@ async def browser_close(background_tasks: BackgroundTasks):
     # Close in the background: if a task is mid-flight the window shuts down once
     # it finishes, so we don't block the request waiting on it.
     background_tasks.add_task(_browser.close)
+    return {"ok": True}
+
+
+# ── Routes: Applied history ───────────────────────────────────────────────────
+
+@app.get("/api/applied")
+async def list_applied():
+    """Everything applied to, newest first."""
+    items = [{"url": url, **data} for url, data in _applied.items()]
+    items.sort(key=lambda x: x.get("applied_at", ""), reverse=True)
+    return items
+
+
+@app.post("/api/applied/remove")
+async def remove_applied(body: AppliedRemove):
+    """Forget one applied listing (it can then be applied to again)."""
+    if body.url in _applied:
+        del _applied[body.url]
+        store.save_applied(_applied)
+    return {"ok": True}
+
+
+@app.delete("/api/applied")
+async def clear_applied():
+    _applied.clear()
+    store.save_applied(_applied)
     return {"ok": True}
 
 
