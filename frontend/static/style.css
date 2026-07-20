@@ -2,12 +2,12 @@
 html { scroll-behavior: smooth; }
 
 :root {
-  --bg: #2c2c31;         /* content background — lighter shade of black */
-  --sidebar: #050506;    /* nav bar — deep matte black */
-  --surface: #050506;    /* boxes/cards — deep matte black */
-  --surface2: #131315;   /* inputs inside boxes */
-  --surface3: #1a1a1d;
-  --btn-idle: #17171a;   /* buttons rest at a shade of black */
+  --bg: #0a0912;         /* deep dark-navy sheet */
+  --sidebar: #0a0912;    /* nav bar — same deep navy */
+  --surface: #0a0912;    /* boxes — same colour as the background */
+  --surface2: #16151f;   /* inputs (lifted so they're visible in a box) */
+  --surface3: #1c1b26;
+  --btn-idle: #1b1a24;   /* buttons rest a touch above the box */
   --border: transparent;
   /* subtle matte grain, applied over boxes/tiles/buttons */
   --noise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.07'/%3E%3C/svg%3E");
