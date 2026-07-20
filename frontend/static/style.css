@@ -257,7 +257,7 @@ input:focus { border-color: var(--accent); }
    it never overlaps the next card; grows a touch when the card pops. */
 .resume-card::after {
   content: ""; position: absolute; z-index: 3;
-  width: 104px; height: 94px; right: -22px; top: 50%;
+  width: 136px; height: 120px; right: -28px; top: 50%;
   background-size: contain; background-repeat: no-repeat; background-position: center;
   filter: drop-shadow(0 6px 10px rgba(0,0,0,.45));
   pointer-events: none;
