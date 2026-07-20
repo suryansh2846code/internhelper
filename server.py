@@ -382,6 +382,20 @@ def _run_multi_search(job_id: str, params: MultiSearchParams):
                         })
                         continue
 
+                    # Search-only platform (no auto-apply yet): hand off as a
+                    # manual link without opening the listing.
+                    if not adapter.supports_auto_apply:
+                        listings.append({
+                            **r,
+                            "platform": adapter.name,
+                            "matched_role": role,
+                            "resume_path": resume_data["path"],
+                            "jd": "", "questions": [], "profile_incomplete": False,
+                            "reason": f"Apply on {adapter.label}",
+                            "status": "link",
+                        })
+                        continue
+
                     # Pace classification so rapid Apply clicks don't get the
                     # platform session temporarily blocked.
                     time.sleep(config.SEARCH_CLASSIFY_DELAY)

@@ -278,14 +278,26 @@ async function deleteResume(role) {
   renderResumeCards(await res.json());
 }
 
-// Load existing resumes on page load
+// Load existing resumes + platforms on page load
 window.addEventListener('load', async () => {
   const res  = await fetch('/api/resumes');
   const data = await res.json();
   renderResumeCards(data);
   const anyExtracting = Object.values(data).some(r => r.keyword_status === 'extracting');
   if (anyExtracting) pollResumes();
+  loadPlatforms();
 });
+
+async function loadPlatforms() {
+  try {
+    const platforms = await (await fetch('/api/platforms')).json();
+    const sel = document.getElementById('platform');
+    if (!sel) return;
+    sel.innerHTML = platforms.map(p =>
+      `<option value="${p.name}">${p.label}${p.supports_auto_apply ? '' : ' (search only)'}</option>`
+    ).join('');
+  } catch {}
+}
 
 // ── Search ────────────────────────────────────────────────────────────────────
 async function startSearch() {
@@ -299,6 +311,7 @@ async function startSearch() {
     location:     document.getElementById('location').value.trim(),
     stipend_min:  parseInt(document.getElementById('stipend').value) || 0,
     max_per_role: parseInt(document.getElementById('max').value) || 10,
+    platform:     document.getElementById('platform')?.value || 'internshala',
   };
 
   const res  = await fetch('/api/search/multi', {
@@ -437,10 +450,15 @@ function setFilter(role, listings) {
   renderListings(listings);
 }
 
+function platformLabel(l) {
+  const n = l.platform || 'internshala';
+  return n.charAt(0).toUpperCase() + n.slice(1);
+}
+
 function listingHTML(l, i) {
   const roleTag = l.matched_role ? `<span class="role-tag">${l.matched_role}</span>` : '';
   const link = `<a href="${l.url}" target="_blank" rel="noopener"
-      class="btn-sm btn-approve" style="text-decoration:none">Apply on Internshala ↗</a>`;
+      class="btn-sm btn-approve" style="text-decoration:none">Apply on ${platformLabel(l)} ↗</a>`;
 
   let actions, note = '';
   switch (l.status) {

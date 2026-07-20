@@ -15,6 +15,9 @@ class PlatformAdapter(ABC):
     name: str = "base"
     # Human label for the UI.
     label: str = "Base"
+    # Whether this platform supports one-click auto-apply. When False, listings
+    # are surfaced as manual "Apply on <platform>" links (search-only support).
+    supports_auto_apply: bool = True
 
     @abstractmethod
     def search(self, context: BrowserContext, filters: dict) -> list[dict]:
