@@ -151,10 +151,18 @@ h1, h2, h3, .brand { font-family: 'Space Grotesk', system-ui, sans-serif; }
 .btn-sm:hover { opacity: .88; }
 .btn-sm:active { transform: translateY(1px); }
 .btn-sm:disabled { opacity: .4; cursor: not-allowed; }
+/* Bold, bright buttons — every action gets its own vivid colour */
 .btn-generate { background: var(--accent); color: #fff; }
 .btn-approve  { background: var(--green); color: #04160f; }
-.btn-skip     { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); }
-#apply-selected-btn { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+.btn-skip     { background: var(--pink); color: #2a0011; border: none; }
+
+.btn-upload { background: var(--green); color: #04160f; border: none; }
+.btn-upload:hover { border: none; opacity: .9; }
+#search-btn { background: var(--accent); color: #fff; }
+#relogin-btn { background: var(--blue); color: #001a2e; border: none; }
+.login-btns .btn-relogin { background: var(--orange); color: #2a1400; border: none; }
+#stop-browser-btn { background: var(--red); color: #2a0000; border: none; }
+.statusbar #stop-browser-btn { color: #2a0000; }
 
 /* ── Content ────────────────────────────────────────────────────────────── */
 .content { padding: 34px 40px 60px; max-width: 1040px; }
@@ -210,12 +218,12 @@ input:focus { border-color: var(--accent); }
 .upload-row { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; flex-wrap: wrap; }
 .upload-row input[type="text"] { flex: 1; min-width: 220px; }
 .btn-upload {
-  background: var(--surface2); border: 1px solid var(--border);
-  border-radius: var(--radius-sm); color: var(--text);
-  font-size: 13px; font-weight: 600; padding: 11px 18px;
-  cursor: pointer; white-space: nowrap; transition: border-color .15s;
+  background: var(--green); border: none;
+  border-radius: var(--radius-sm); color: #04160f;
+  font-size: 13px; font-weight: 700; padding: 11px 18px;
+  cursor: pointer; white-space: nowrap; transition: opacity .15s;
 }
-.btn-upload:hover { border-color: var(--accent); }
+.btn-upload:hover { opacity: .9; }
 
 .platform-toggles { display: flex; gap: 10px; flex-wrap: wrap; }
 .platform-toggle {
@@ -296,8 +304,8 @@ input:focus { border-color: var(--accent); }
   transition: border-color .15s, transform .1s;
 }
 .listing-card::before {
-  content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
-  background: var(--accent);
+  content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 5px;
+  background: var(--card-accent, var(--accent));
 }
 .listing-card:hover { border-color: var(--accent); transform: translateY(-1px); }
 .listing-meta { display: flex; flex-direction: column; gap: 5px; min-width: 0; padding-left: 6px; }

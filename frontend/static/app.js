@@ -386,6 +386,11 @@ function stopPolling() {
   if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
 }
 
+// ── Bright colour palette (every card/button gets its own bold colour) ────────
+const BRIGHT = ['#ffd23f', '#ff8a3d', '#ff6b9d', '#34d399', '#7c5cff',
+                '#3b9dff', '#a3e635', '#22d3ee', '#ff5c5c', '#c084fc'];
+function brightColor(i) { return BRIGHT[((i % BRIGHT.length) + BRIGHT.length) % BRIGHT.length]; }
+
 // ── Render listings ───────────────────────────────────────────────────────────
 function renderListings(listings) {
   const panel = document.getElementById('results-panel');
@@ -409,6 +414,7 @@ function renderListings(listings) {
     const card = document.createElement('div');
     card.className = 'listing-card';
     card.id = `listing-${realIndex}`;
+    card.style.setProperty('--card-accent', brightColor(realIndex));
     card.innerHTML = listingHTML(l, realIndex);
     grid.appendChild(card);
   });
@@ -427,11 +433,12 @@ function renderBulkBar(autoIndices) {
   selected = new Set([...selected].filter(i => autoIndices.includes(i)));
   if (!autoIndices.length) { bar.style.display = 'none'; bar.innerHTML = ''; return; }
   bar.style.display = '';
+  const cAll = brightColor(2), cSel = brightColor(7);
   bar.innerHTML = `
-    <button class="btn-sm btn-approve" onclick='applyBatch(${JSON.stringify(autoIndices)})'>
+    <button class="btn-sm" style="background:${cAll};color:#000;border:none;font-weight:700" onclick='applyBatch(${JSON.stringify(autoIndices)})'>
       ⚡ Apply to all ${autoIndices.length} no-question listing${autoIndices.length !== 1 ? 's' : ''}
     </button>
-    <button id="apply-selected-btn" class="btn-sm" onclick="applyBatch([...selected])" ${selected.size ? '' : 'disabled'}>
+    <button id="apply-selected-btn" class="btn-sm" style="background:${cSel};color:#000;border:none;font-weight:700" onclick="applyBatch([...selected])" ${selected.size ? '' : 'disabled'}>
       Apply to selected (${selected.size})
     </button>
     <span id="bulk-progress" class="bulk-progress"></span>`;
@@ -490,17 +497,19 @@ function platformLabel(l) {
 }
 
 function listingHTML(l, i) {
+  const c = brightColor(i);
+  const bright = `style="background:${c};color:#000;border:none;font-weight:700"`;
   const roleTag = l.matched_role ? `<span class="role-tag">${l.matched_role}</span>` : '';
   const platTag = l.platform ? `<span class="platform-tag platform-${l.platform}">${platformLabel(l)}</span>` : '';
   const link = `<a href="${l.url}" target="_blank" rel="noopener"
-      class="btn-sm btn-approve" style="text-decoration:none">Apply on ${platformLabel(l)} ↗</a>`;
+      class="btn-sm" ${bright.slice(0, -1)};text-decoration:none">Apply on ${platformLabel(l)} ↗</a>`;
 
   let actions, note = '';
   switch (l.status) {
     case 'auto':       // no custom questions — we can upload the résumé & submit
       actions = `
         <label class="bulk-check"><input type="checkbox" onchange="toggleSelect(${i}, this.checked)" ${selected.has(i) ? 'checked' : ''}> Select</label>
-        <button class="btn-sm btn-approve" onclick="directApply(${i})">⚡ Auto-apply (upload résumé)</button>`;
+        <button class="btn-sm" ${bright} onclick="directApply(${i})">⚡ Auto-apply</button>`;
       note = 'No custom questions — one-click apply with your résumé';
       break;
     case 'submitting':
