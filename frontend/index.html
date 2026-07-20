@@ -4,91 +4,108 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>InternHelper</title>
-  <link rel="stylesheet" href="/static/style.css?v=8" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/style.css?v=9" />
 </head>
 <body>
-  <header>
-    <div class="logo">⚡ InternHelper</div>
-    <span class="tagline">AI-powered Internshala applications</span>
-    <div class="header-auth">
-      <span id="auth-status" class="status-msg"></span>
-      <button id="applied-btn" class="btn-relogin" onclick="toggleApplied()">📋 Applied (0)</button>
-      <span id="platform-logins"></span>
-      <button id="stop-browser-btn" class="btn-relogin" onclick="closeBrowser()" style="display:none">✕ Close browser window</button>
-      <button id="relogin-btn" class="btn-relogin" onclick="relogin()">Re-login to Internshala</button>
-    </div>
-  </header>
+  <div class="app">
 
-  <main>
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+      <div class="brand"><span class="brand-mark">⚡</span> InternHelper</div>
 
-    <!-- APPLIED HISTORY -->
-    <section id="applied-panel" class="card hidden">
-      <div class="results-header">
-        <h2>Applied history</h2>
-        <button class="btn-sm btn-skip" onclick="clearApplied()">Clear all</button>
+      <nav class="nav">
+        <a href="#resume-panel" class="nav-item" data-nav>Résumés</a>
+        <a href="#search-panel" class="nav-item" data-nav>Search</a>
+        <a href="#results-panel" class="nav-item" data-nav>Results</a>
+        <button class="nav-item" id="applied-btn" onclick="toggleApplied()">Applied</button>
+      </nav>
+
+      <div class="sidebar-foot">
+        <div id="platform-logins" class="login-btns"></div>
+        <button id="relogin-btn" class="btn-ghost" onclick="relogin()">Re-login to Internshala</button>
+        <span id="auth-status" class="status-msg"></span>
       </div>
-      <div id="applied-list"></div>
-    </section>
+    </aside>
 
-    <!-- STEP 1: RESUME MANAGER -->
-    <section class="card" id="resume-panel">
-      <div class="step-header">
-        <span class="step-pill">Step 1</span>
-        <h2>Upload Your Resumes</h2>
-      </div>
-      <p class="step-hint">Upload one resume per role. AI will auto-suggest search keywords from each.</p>
+    <!-- MAIN -->
+    <main class="content">
+      <header class="page-head">
+        <div>
+          <h1>Find &amp; auto-apply to internships</h1>
+          <p class="page-sub">AI-matched listings across Internshala &amp; Unstop</p>
+        </div>
+      </header>
 
-      <div class="upload-row">
-        <input type="text" id="role-input" placeholder="Role label  e.g. frontend, backend, fullstack" />
-        <label class="btn-upload">
-          Choose File
-          <input type="file" id="resume-file" accept=".pdf,.txt,.docx,.png,.jpg,.jpeg,.webp" style="display:none" />
-        </label>
-        <span id="upload-status" class="status-msg"></span>
-      </div>
+      <!-- APPLIED HISTORY -->
+      <section id="applied-panel" class="card hidden">
+        <div class="section-head">
+          <h2>Applied history</h2>
+          <button class="btn-sm btn-skip" onclick="clearApplied()">Clear all</button>
+        </div>
+        <div id="applied-list"></div>
+      </section>
 
-      <div id="resume-cards"></div>
-    </section>
+      <!-- STEP 1: RESUMES -->
+      <section class="card" id="resume-panel">
+        <div class="section-head">
+          <div class="step-head"><span class="step-pill">1</span><h2>Upload your résumés</h2></div>
+        </div>
+        <p class="step-hint">One résumé per role — AI suggests search keywords from each.</p>
+        <div class="upload-row">
+          <input type="text" id="role-input" placeholder="Role label  ·  e.g. frontend, backend, fullstack" />
+          <label class="btn-upload">
+            Choose file
+            <input type="file" id="resume-file" accept=".pdf,.txt,.docx,.png,.jpg,.jpeg,.webp" style="display:none" />
+          </label>
+          <span id="upload-status" class="status-msg"></span>
+        </div>
+        <div id="resume-cards"></div>
+      </section>
 
-    <!-- STEP 2: SEARCH SETTINGS -->
-    <section class="card" id="search-panel">
-      <div class="step-header">
-        <span class="step-pill">Step 2</span>
-        <h2>Search Settings</h2>
-      </div>
+      <!-- STEP 2: SEARCH -->
+      <section class="card" id="search-panel">
+        <div class="section-head">
+          <div class="step-head"><span class="step-pill">2</span><h2>Search settings</h2></div>
+        </div>
+        <div class="form-grid">
+          <label>Platforms
+            <div id="platform-toggles" class="platform-toggles"></div>
+          </label>
+          <label>Location
+            <input type="text" id="location" value="work from home" />
+          </label>
+          <label>Min stipend (₹/month)
+            <input type="number" id="stipend" value="0" min="0" step="1000" />
+          </label>
+          <label>Max listings per role
+            <input type="number" id="max" value="10" min="1" max="30" />
+          </label>
+        </div>
+        <button id="search-btn" class="btn-primary" onclick="startSearch()">Search all roles →</button>
+        <div id="search-status" class="status-msg"></div>
+      </section>
 
-      <div class="form-grid">
-        <label>Platforms
-          <div id="platform-toggles" class="platform-toggles"></div>
-        </label>
-        <label>Location
-          <input type="text" id="location" value="work from home" />
-        </label>
-        <label>Min stipend (₹/month)
-          <input type="number" id="stipend" value="0" min="0" step="1000" />
-        </label>
-        <label>Max listings per role
-          <input type="number" id="max" value="10" min="1" max="30" />
-        </label>
-      </div>
+      <!-- STEP 3: RESULTS -->
+      <section id="results-panel" class="hidden">
+        <div class="results-header">
+          <h2 id="results-title">Found listings</h2>
+          <div id="role-filters"></div>
+        </div>
+        <div id="bulk-bar" class="bulk-bar" style="display:none"></div>
+        <div id="listings-grid"></div>
+      </section>
+    </main>
+  </div>
 
-      <button id="search-btn" class="btn-primary" onclick="startSearch()">
-        Search All Roles
-      </button>
-      <div id="search-status" class="status-msg"></div>
-    </section>
-
-    <!-- STEP 3: RESULTS -->
-    <section id="results-panel" class="hidden">
-      <div class="results-header">
-        <h2 id="results-title">Found listings</h2>
-        <div id="role-filters"></div>
-      </div>
-      <div id="bulk-bar" class="bulk-bar" style="display:none"></div>
-      <div id="listings-grid"></div>
-    </section>
-
-  </main>
+  <!-- BOTTOM STATUS BAR -->
+  <footer class="statusbar">
+    <span class="statusbar-dot" id="statusbar-dot"></span>
+    <span id="statusbar-info" class="statusbar-info">Ready</span>
+    <button id="stop-browser-btn" class="btn-ghost" onclick="closeBrowser()" style="display:none">✕ Close browser window</button>
+  </footer>
 
   <!-- REVIEW MODAL -->
   <div id="modal-overlay" class="hidden" onclick="closeModal(event)">
@@ -98,6 +115,6 @@
     </div>
   </div>
 
-  <script src="/static/app.js?v=8"></script>
+  <script src="/static/app.js?v=9"></script>
 </body>
 </html>

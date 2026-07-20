@@ -58,13 +58,23 @@ async function pollBrowser() {
   let running = false;
   try { running = (await (await fetch('/api/browser/status')).json()).running; }
   catch { return; }
-  const btn = document.getElementById('stop-browser-btn');
-  btn.style.display = running ? '' : 'none';
-  btn.disabled = false;
-  btn.textContent = '✕ Close browser window';
+  const btn  = document.getElementById('stop-browser-btn');
+  const dot  = document.getElementById('statusbar-dot');
+  const info = document.getElementById('statusbar-info');
+  if (btn) { btn.style.display = running ? '' : 'none'; btn.disabled = false; btn.textContent = '✕ Close browser window'; }
+  if (dot) dot.classList.toggle('live', running);
+  if (info) info.textContent = running ? 'Automation browser active' : 'Ready';
 }
 setInterval(pollBrowser, 3000);
 pollBrowser();
+
+// ── Sidebar nav active state ────────────────────────────────────────────────
+document.querySelectorAll('.nav-item[data-nav]').forEach(a => {
+  a.addEventListener('click', () => {
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    a.classList.add('active');
+  });
+});
 
 // ── Applied history ─────────────────────────────────────────────────────────
 async function refreshAppliedCount() {
