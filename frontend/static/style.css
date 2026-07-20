@@ -243,43 +243,43 @@ input:focus { border-color: var(--accent); }
 .platform-toggle input { width: auto; margin: 0; accent-color: var(--accent); cursor: pointer; }
 
 /* ── Résumé cards & chips ───────────────────────────────────────────────── */
+/* Whole résumé card is a bright colour (rotating), text black */
 .resume-card {
-  background: var(--surface2); border: 1px solid var(--border);
-  border-radius: 12px; padding: 16px; margin-bottom: 10px;
+  color: #000;
+  background-image: var(--noise);
+  border-radius: 14px; padding: 16px; margin-bottom: 10px;
 }
+#resume-cards .resume-card:nth-child(6n+1) { background-color: var(--yellow); }
+#resume-cards .resume-card:nth-child(6n+2) { background-color: var(--green); }
+#resume-cards .resume-card:nth-child(6n+3) { background-color: var(--pink); }
+#resume-cards .resume-card:nth-child(6n+4) { background-color: var(--blue); }
+#resume-cards .resume-card:nth-child(6n+5) { background-color: var(--orange); }
+#resume-cards .resume-card:nth-child(6n)   { background-color: var(--accent); }
 .resume-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
-.resume-role { font-weight: 700; font-size: 14px; text-transform: capitalize; }
-.resume-filename { color: var(--muted); font-size: 12px; }
+.resume-role { font-weight: 800; font-size: 15px; text-transform: capitalize; color: #000; }
+.resume-filename { color: rgba(0,0,0,.6); font-size: 12px; font-weight: 600; }
 .btn-delete {
-  background: none; border: none; color: var(--muted);
+  background: none; border: none; color: rgba(0,0,0,.55);
   font-size: 16px; cursor: pointer; padding: 2px 6px; border-radius: 4px; transition: color .15s;
 }
-.btn-delete:hover { color: var(--red); }
+.btn-delete:hover { color: #000; }
 
 .keyword-area { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+/* Skill chips: dark like the background, white text */
 .chip {
   display: inline-flex; align-items: center; gap: 5px;
-  border-radius: 99px; padding: 4px 11px; font-size: 12px;
-  color: #000; font-weight: 700;
+  border-radius: 99px; padding: 5px 12px; font-size: 12px;
+  background: var(--bg); color: #fff; font-weight: 600;
 }
-/* Colour the chips with the bright palette (black text) */
-.keyword-area .chip:nth-child(9n+1) { background: var(--yellow); }
-.keyword-area .chip:nth-child(9n+2) { background: var(--orange); }
-.keyword-area .chip:nth-child(9n+3) { background: var(--pink); }
-.keyword-area .chip:nth-child(9n+4) { background: var(--green); }
-.keyword-area .chip:nth-child(9n+5) { background: var(--accent); }
-.keyword-area .chip:nth-child(9n+6) { background: var(--blue); }
-.keyword-area .chip:nth-child(9n+7) { background: #a3e635; }
-.keyword-area .chip:nth-child(9n+8) { background: #22d3ee; }
-.keyword-area .chip:nth-child(9n)   { background: var(--red); }
-.chip-remove { background: none; border: none; color: rgba(0,0,0,.55); cursor: pointer; font-size: 13px; line-height: 1; padding: 0; }
-.chip-remove:hover { color: #000; }
+.chip-remove { background: none; border: none; color: rgba(255,255,255,.55); cursor: pointer; font-size: 13px; line-height: 1; padding: 0; }
+.chip-remove:hover { color: #fff; }
 .chip-input {
-  background: none; border: 1px dashed var(--border); border-radius: 99px;
-  color: var(--text); font-size: 12px; padding: 4px 11px; width: 110px; outline: none;
+  background: none; border: 1px dashed rgba(0,0,0,.4); border-radius: 99px;
+  color: #000; font-size: 12px; padding: 5px 12px; width: 110px; outline: none;
 }
-.chip-input:focus { border-color: var(--accent); }
-.kw-extracting { color: var(--muted); font-size: 12px; }
+.chip-input::placeholder { color: rgba(0,0,0,.5); }
+.chip-input:focus { border-color: #000; }
+.kw-extracting { color: rgba(0,0,0,.65); font-size: 12px; font-weight: 600; }
 
 /* ── Results ────────────────────────────────────────────────────────────── */
 .results-header {
