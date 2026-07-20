@@ -414,7 +414,7 @@ function renderListings(listings) {
     const card = document.createElement('div');
     card.className = 'listing-card';
     card.id = `listing-${realIndex}`;
-    card.style.background = brightColor(realIndex);
+    card.style.backgroundColor = brightColor(realIndex);
     card.innerHTML = listingHTML(l, realIndex);
     grid.appendChild(card);
   });
@@ -435,10 +435,10 @@ function renderBulkBar(autoIndices) {
   bar.style.display = '';
   const cAll = brightColor(2), cSel = brightColor(7);
   bar.innerHTML = `
-    <button class="btn-sm" style="background:${cAll};color:#000;border:none;font-weight:700" onclick='applyBatch(${JSON.stringify(autoIndices)})'>
+    <button class="btn-sm pop-btn" style="--pop:${cAll}" onclick='applyBatch(${JSON.stringify(autoIndices)})'>
       ⚡ Apply to all ${autoIndices.length} no-question listing${autoIndices.length !== 1 ? 's' : ''}
     </button>
-    <button id="apply-selected-btn" class="btn-sm" style="background:${cSel};color:#000;border:none;font-weight:700" onclick="applyBatch([...selected])" ${selected.size ? '' : 'disabled'}>
+    <button id="apply-selected-btn" class="btn-sm pop-btn" style="--pop:${cSel}" onclick="applyBatch([...selected])" ${selected.size ? '' : 'disabled'}>
       Apply to selected (${selected.size})
     </button>
     <span id="bulk-progress" class="bulk-progress"></span>`;
