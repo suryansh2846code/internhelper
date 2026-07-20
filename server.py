@@ -30,6 +30,7 @@ async def no_cache_assets(request, call_next):
 
 
 app.mount("/static", StaticFiles(directory="frontend/static"), name="static")
+app.mount("/assets", StaticFiles(directory="assets"), name="assets")
 
 # One shared browser window, reused for every search and apply (see
 # browser_session.BrowserWorker). Opened on first use, closed on demand.

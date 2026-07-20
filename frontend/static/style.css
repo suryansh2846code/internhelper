@@ -305,20 +305,20 @@ input:focus { border-color: var(--accent); }
 .bulk-check input { width: auto; margin: 0; accent-color: var(--accent); cursor: pointer; }
 .bulk-progress { margin-left: auto; font-size: 13px; color: var(--text); font-weight: 600; }
 
-/* Tile grid — solid bright cards with black text */
+/* Tile grid — solid bright portrait cards with a character + black text */
 #listings-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(255px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 16px;
 }
 .listing-card {
   color: #000;
   border-radius: var(--radius);
-  padding: 20px;
+  padding: 18px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  min-height: 190px;
+  gap: 12px;
+  min-height: 360px;
   /* matte grain over the solid colour + a lift off the sheet */
   background-image: var(--noise);
   box-shadow: 0 12px 30px rgba(0,0,0,.35);
@@ -334,7 +334,15 @@ input:focus { border-color: var(--accent); }
 .tile-logo-fallback { display: grid; place-items: center; font-weight: 800; font-size: 22px; }
 .tile-tags { display: flex; gap: 5px; flex-wrap: wrap; justify-content: flex-end; }
 
-.tile-body { display: flex; flex-direction: column; gap: 3px; margin-top: auto; }
+.tile-hero {
+  flex: 1; display: grid; place-items: center; min-height: 0;
+  margin: -4px 0;
+}
+.tile-hero img {
+  max-height: 180px; max-width: 90%; object-fit: contain;
+  filter: drop-shadow(0 8px 16px rgba(0,0,0,.35));
+}
+.tile-body { display: flex; flex-direction: column; gap: 3px; }
 .tile-title { font-weight: 700; font-size: 16px; line-height: 1.25; }
 .tile-sub { font-size: 13px; font-weight: 600; opacity: .8; }
 .tile-stipend { font-size: 12px; font-weight: 600; opacity: .65; }
