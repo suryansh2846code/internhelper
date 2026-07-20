@@ -129,6 +129,28 @@ input:focus { border-color: var(--accent); }
 .btn-generate { background: var(--accent); color: #fff; }
 .btn-approve  { background: var(--green); color: #000; }
 .btn-skip     { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); }
+.btn-sm:disabled { opacity: .4; cursor: not-allowed; }
+#apply-selected-btn { background: var(--surface2); color: var(--fg, #e6e8f0); border: 1px solid var(--border); }
+
+.bulk-bar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.bulk-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+  cursor: pointer;
+}
+.bulk-check input { width: auto; margin: 0; cursor: pointer; }
 
 .status-msg { margin-top: 12px; font-size: 13px; color: var(--muted); }
 

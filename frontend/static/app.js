@@ -312,6 +312,57 @@ function renderListings(listings) {
     card.innerHTML = listingHTML(l, realIndex);
     grid.appendChild(card);
   });
+
+  // Bulk-apply bar for no-question ('auto') listings in the current view
+  const autoIndices = filtered.filter(l => l.status === 'auto').map(l => listings.indexOf(l));
+  renderBulkBar(autoIndices);
+}
+
+// ── Bulk apply ────────────────────────────────────────────────────────────────
+let selected = new Set();
+
+function renderBulkBar(autoIndices) {
+  const bar = document.getElementById('bulk-bar');
+  // Drop selections that are no longer auto-eligible (e.g. already applied)
+  selected = new Set([...selected].filter(i => autoIndices.includes(i)));
+  if (!autoIndices.length) { bar.style.display = 'none'; bar.innerHTML = ''; return; }
+  bar.style.display = '';
+  bar.innerHTML = `
+    <button class="btn-sm btn-approve" onclick='applyBatch(${JSON.stringify(autoIndices)})'>
+      ⚡ Apply to all ${autoIndices.length} no-question listing${autoIndices.length !== 1 ? 's' : ''}
+    </button>
+    <button id="apply-selected-btn" class="btn-sm" onclick="applyBatch([...selected])" ${selected.size ? '' : 'disabled'}>
+      Apply to selected (${selected.size})
+    </button>`;
+}
+
+function toggleSelect(index, checked) {
+  if (checked) selected.add(index); else selected.delete(index);
+  const btn = document.getElementById('apply-selected-btn');
+  if (btn) {
+    btn.textContent = `Apply to selected (${selected.size})`;
+    btn.disabled = selected.size === 0;
+  }
+}
+
+async function applyBatch(indices) {
+  if (!indices.length) return;
+  if (!confirm(`Auto-apply to ${indices.length} internship${indices.length !== 1 ? 's' : ''}? This uploads your résumé and submits each application on Internshala.`)) return;
+  indices.forEach(i => patchListingStatus(i, 'submitting'));
+  await fetch('/api/submit-batch', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ job_id: currentJobId, listing_indices: indices }),
+  });
+  const t = setInterval(async () => {
+    const j = await (await fetch(`/api/job/${currentJobId}`)).json();
+    let pending = false;
+    indices.forEach(i => {
+      refreshListing(i, j.listings[i], j.listings);
+      if (j.listings[i].status === 'submitting') pending = true;
+    });
+    if (!pending) { clearInterval(t); renderListings(j.listings); }
+  }, 2000);
 }
 
 function setFilter(role, listings) {
@@ -327,7 +378,9 @@ function listingHTML(l, i) {
   let actions, note = '';
   switch (l.status) {
     case 'auto':       // no custom questions — we can upload the résumé & submit
-      actions = `<button class="btn-sm btn-approve" onclick="directApply(${i})">⚡ Auto-apply (upload résumé)</button>`;
+      actions = `
+        <label class="bulk-check"><input type="checkbox" onchange="toggleSelect(${i}, this.checked)" ${selected.has(i) ? 'checked' : ''}> Select</label>
+        <button class="btn-sm btn-approve" onclick="directApply(${i})">⚡ Auto-apply (upload résumé)</button>`;
       note = 'No custom questions — one-click apply with your résumé';
       break;
     case 'submitting':

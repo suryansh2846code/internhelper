@@ -12,6 +12,18 @@ from pydantic import BaseModel
 from browser_session import BrowserWorker
 
 app = FastAPI(title="InternHelper")
+
+
+@app.middleware("http")
+async def no_cache_assets(request, call_next):
+    """Don't let the browser cache the UI/assets — otherwise frontend changes
+    silently don't show up until a manual hard refresh."""
+    response = await call_next(request)
+    if request.url.path == "/" or request.url.path.startswith("/static"):
+        response.headers["Cache-Control"] = "no-store, must-revalidate"
+    return response
+
+
 app.mount("/static", StaticFiles(directory="frontend/static"), name="static")
 
 # One shared browser window, reused for every search and apply (see
@@ -45,6 +57,10 @@ class AnswerEdit(BaseModel):
     listing_index: int
     answers: dict[str, str]
     action: str  # "approve" | "skip"
+
+class BatchSubmit(BaseModel):
+    job_id: str
+    listing_indices: list[int]
 
 
 # ── Routes: UI ────────────────────────────────────────────────────────────────
@@ -194,6 +210,31 @@ async def submit_application(body: AnswerEdit, background_tasks: BackgroundTasks
     return {"ok": True}
 
 
+@app.post("/api/submit-batch")
+async def submit_batch(body: BatchSubmit, background_tasks: BackgroundTasks):
+    """Auto-apply to several no-question listings in one go. Only listings still
+    eligible for auto-apply (status 'auto') are queued; each is applied in turn
+    on the shared browser window."""
+    job = _jobs.get(body.job_id)
+    if not job:
+        return JSONResponse({"error": "Job not found"}, status_code=404)
+
+    queued: list[int] = []
+    for idx in body.listing_indices:
+        if 0 <= idx < len(job["listings"]):
+            listing = job["listings"][idx]
+            if listing.get("status") == "auto":
+                listing["status"] = "submitting"
+                listing["final_answers"] = {}
+                queued.append(idx)
+
+    if not queued:
+        return JSONResponse({"error": "No auto-apply listings selected"}, status_code=400)
+
+    background_tasks.add_task(_run_submit_batch, body.job_id, queued)
+    return {"ok": True, "count": len(queued)}
+
+
 # ── Background tasks ──────────────────────────────────────────────────────────
 
 def _relogin_task():
@@ -296,6 +337,28 @@ def _run_multi_search(job_id: str, params: MultiSearchParams):
     except Exception as e:
         _jobs[job_id]["status"] = "error"
         _jobs[job_id]["error"] = str(e)
+
+
+def _run_submit_batch(job_id: str, indices: list[int]):
+    """Apply to each queued listing in turn. Runs on the shared browser thread
+    one at a time, so all applies reuse the single window/tab."""
+    from apply.form_filler import submit_application
+
+    job = _jobs.get(job_id)
+    if not job:
+        return
+    for idx in indices:
+        listing = job["listings"][idx]
+        try:
+            ok, msg = _browser.run(
+                lambda context, l=listing: submit_application(context, l, l.get("final_answers") or {})
+            )
+            listing["status"] = "submitted" if ok else "error"
+            if not ok:
+                listing["error"] = msg
+        except Exception as e:
+            listing["status"] = "error"
+            listing["error"] = str(e)
 
 
 def _run_generate(job_id: str, listing_index: int):
