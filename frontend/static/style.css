@@ -2,12 +2,12 @@
 html { scroll-behavior: smooth; }
 
 :root {
-  --bg: #14131e;         /* dark-navy sheet, a little lighter */
-  --sidebar: #14131e;    /* nav bar — same navy */
-  --surface: #14131e;    /* boxes — same colour as the background */
-  --surface2: #14131e;   /* inputs/chips — same colour as the background */
+  --bg: #14131e;         /* dark-navy sheet */
+  --sidebar: #0b0a13;    /* nav bar — dark box */
+  --surface: #0b0a13;    /* boxes/cards — darker than the sheet */
+  --surface2: #14131e;   /* inputs / résumé area — same as the background */
   --surface3: #201f2a;   /* hover/lifted states */
-  --btn-idle: #201f2a;   /* buttons rest a touch above */
+  --btn-idle: #1c1b25;   /* buttons rest a touch above the box */
   --border: transparent;
   /* subtle matte grain, applied over boxes/tiles/buttons */
   --noise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.07'/%3E%3C/svg%3E");
@@ -259,11 +259,21 @@ input:focus { border-color: var(--accent); }
 .keyword-area { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .chip {
   display: inline-flex; align-items: center; gap: 5px;
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: 99px; padding: 4px 11px; font-size: 12px; color: var(--text);
+  border-radius: 99px; padding: 4px 11px; font-size: 12px;
+  color: #000; font-weight: 700;
 }
-.chip-remove { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 13px; line-height: 1; padding: 0; }
-.chip-remove:hover { color: var(--red); }
+/* Colour the chips with the bright palette (black text) */
+.keyword-area .chip:nth-child(9n+1) { background: var(--yellow); }
+.keyword-area .chip:nth-child(9n+2) { background: var(--orange); }
+.keyword-area .chip:nth-child(9n+3) { background: var(--pink); }
+.keyword-area .chip:nth-child(9n+4) { background: var(--green); }
+.keyword-area .chip:nth-child(9n+5) { background: var(--accent); }
+.keyword-area .chip:nth-child(9n+6) { background: var(--blue); }
+.keyword-area .chip:nth-child(9n+7) { background: #a3e635; }
+.keyword-area .chip:nth-child(9n+8) { background: #22d3ee; }
+.keyword-area .chip:nth-child(9n)   { background: var(--red); }
+.chip-remove { background: none; border: none; color: rgba(0,0,0,.55); cursor: pointer; font-size: 13px; line-height: 1; padding: 0; }
+.chip-remove:hover { color: #000; }
 .chip-input {
   background: none; border: 1px dashed var(--border); border-radius: 99px;
   color: var(--text); font-size: 12px; padding: 4px 11px; width: 110px; outline: none;
