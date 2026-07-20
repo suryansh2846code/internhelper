@@ -243,11 +243,14 @@ input:focus { border-color: var(--accent); }
 .platform-toggle input { width: auto; margin: 0; accent-color: var(--accent); cursor: pointer; }
 
 /* ── Résumé cards & chips ───────────────────────────────────────────────── */
-/* Whole résumé card is a bright colour (rotating), text black; pops on hover */
+/* Whole résumé card is a bright colour (rotating), text black; pops on hover.
+   Diagonal pinstripe texture sets it apart from the internship tiles. */
 .resume-card {
   color: #000;
-  background-image: var(--noise);
-  border-radius: 14px; padding: 16px; margin-bottom: 30px;
+  background-image:
+    repeating-linear-gradient(-45deg, rgba(0,0,0,.07) 0 3px, transparent 3px 13px),
+    var(--noise);
+  border-radius: 14px; padding: 16px 108px 16px 16px; margin-bottom: 30px;
   position: relative;
   transition: transform .22s cubic-bezier(.34, 1.4, .64, 1), box-shadow .22s;
 }
@@ -281,10 +284,14 @@ input:focus { border-color: var(--accent); }
 .resume-role { font-weight: 800; font-size: 15px; text-transform: capitalize; color: #000; }
 .resume-filename { color: rgba(0,0,0,.6); font-size: 12px; font-weight: 600; }
 .btn-delete {
-  background: none; border: none; color: rgba(0,0,0,.55);
-  font-size: 16px; cursor: pointer; padding: 2px 6px; border-radius: 4px; transition: color .15s;
+  position: absolute; top: 12px; right: 12px; z-index: 5;
+  background: rgba(0,0,0,.72); color: #fff; border: none;
+  width: 24px; height: 24px; border-radius: 50%;
+  font-size: 13px; line-height: 1; cursor: pointer;
+  display: grid; place-items: center;
+  transition: background .15s, transform .1s;
 }
-.btn-delete:hover { color: #000; }
+.btn-delete:hover { background: #000; transform: scale(1.12); }
 
 .keyword-area { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 /* Skill chips: dark like the background, white text */
