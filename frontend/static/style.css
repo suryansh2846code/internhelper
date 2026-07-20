@@ -289,39 +289,51 @@ input:focus { border-color: var(--accent); }
 .bulk-check input { width: auto; margin: 0; accent-color: var(--accent); cursor: pointer; }
 .bulk-progress { margin-left: auto; font-size: 13px; color: var(--text); font-weight: 600; }
 
-.listing-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 18px 20px;
-  margin-bottom: 12px;
+/* Tile grid — solid bright cards with black text */
+#listings-grid {
   display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 14px;
-  align-items: center;
-  position: relative;
-  overflow: hidden;
-  transition: border-color .15s, transform .1s;
+  grid-template-columns: repeat(auto-fill, minmax(255px, 1fr));
+  gap: 16px;
 }
-.listing-card::before {
-  content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 5px;
-  background: var(--card-accent, var(--accent));
+.listing-card {
+  color: #000;
+  border-radius: var(--radius);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 190px;
+  transition: transform .12s, box-shadow .12s;
 }
-.listing-card:hover { border-color: var(--accent); transform: translateY(-1px); }
-.listing-meta { display: flex; flex-direction: column; gap: 5px; min-width: 0; padding-left: 6px; }
-.listing-title { font-weight: 600; font-size: 15px; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
-.listing-sub { font-size: 13px; color: var(--muted); }
-.listing-actions { display: flex; gap: 8px; align-items: center; }
+.listing-card:hover { transform: translateY(-3px); box-shadow: 0 10px 30px rgba(0,0,0,.35); }
 
-/* Platform & role tags */
-.platform-tag, .role-tag {
-  font-size: 10px; font-weight: 700; text-transform: uppercase;
-  letter-spacing: .04em; padding: 3px 8px; border-radius: 6px;
+.tile-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.tile-logo {
+  width: 46px; height: 46px; border-radius: 12px; flex: none;
+  background: #fff; object-fit: contain; padding: 5px;
 }
-.platform-tag { color: #000; }
-.platform-internshala { background: var(--blue); }
-.platform-unstop { background: var(--yellow); }
-.role-tag { background: var(--surface3); color: #c9c2ff; }
+.tile-logo-fallback { display: grid; place-items: center; font-weight: 800; font-size: 22px; }
+.tile-tags { display: flex; gap: 5px; flex-wrap: wrap; justify-content: flex-end; }
+
+.tile-body { display: flex; flex-direction: column; gap: 3px; margin-top: auto; }
+.tile-title { font-weight: 700; font-size: 16px; line-height: 1.25; }
+.tile-sub { font-size: 13px; font-weight: 600; opacity: .8; }
+.tile-stipend { font-size: 12px; font-weight: 600; opacity: .65; }
+.tile-note { font-size: 11px; font-weight: 600; opacity: .75; margin-top: 4px; }
+
+.tile-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.tile-btn { background: #000; color: #fff; }
+.tile-btn:hover { opacity: .82; }
+.tile-check { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; cursor: pointer; }
+.tile-check input { width: auto; margin: 0; accent-color: #000; cursor: pointer; }
+.tile-status { font-weight: 700; font-size: 14px; }
+
+/* Platform & role tags — black on the bright tile */
+.platform-tag, .role-tag {
+  font-size: 10px; font-weight: 800; text-transform: uppercase;
+  letter-spacing: .04em; padding: 3px 8px; border-radius: 6px;
+  background: #000; color: #fff;
+}
 
 /* ── Applied history ────────────────────────────────────────────────────── */
 .applied-row {
@@ -393,4 +405,16 @@ textarea.answer-box:focus { border-color: var(--accent); }
   .nav { flex-direction: row; }
   .content { padding: 24px 20px 60px; }
   .form-grid { grid-template-columns: 1fr; }
+}
+
+/* ── Borderless — separation via colour, not lines (keeps only the nav bar) ── */
+.card, .resume-card, .applied-row, .bulk-bar, .platform-toggle, .role-pill,
+.chip, .chip-input, .modal, .modal-actions, .sidebar, .sidebar-foot, .statusbar,
+input[type="text"], input[type="number"], textarea.answer-box,
+.btn-ghost, .btn-relogin, .btn-skip {
+  border: none;
+}
+/* Inputs lost their border — show focus with a glow instead */
+input[type="text"]:focus, input[type="number"]:focus, textarea.answer-box:focus, .chip-input:focus {
+  box-shadow: 0 0 0 2px var(--accent);
 }

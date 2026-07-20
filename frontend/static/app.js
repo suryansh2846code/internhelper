@@ -414,7 +414,7 @@ function renderListings(listings) {
     const card = document.createElement('div');
     card.className = 'listing-card';
     card.id = `listing-${realIndex}`;
-    card.style.setProperty('--card-accent', brightColor(realIndex));
+    card.style.background = brightColor(realIndex);
     card.innerHTML = listingHTML(l, realIndex);
     grid.appendChild(card);
   });
@@ -497,46 +497,40 @@ function platformLabel(l) {
 }
 
 function listingHTML(l, i) {
-  const c = brightColor(i);
-  const bright = `style="background:${c};color:#000;border:none;font-weight:700"`;
   const roleTag = l.matched_role ? `<span class="role-tag">${l.matched_role}</span>` : '';
-  const platTag = l.platform ? `<span class="platform-tag platform-${l.platform}">${platformLabel(l)}</span>` : '';
+  const platTag = l.platform ? `<span class="platform-tag">${platformLabel(l)}</span>` : '';
+  const logo = l.logo
+    ? `<img class="tile-logo" src="${l.logo}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'tile-logo tile-logo-fallback',textContent:'${(l.company || '?').charAt(0)}'}))">`
+    : `<span class="tile-logo tile-logo-fallback">${(l.company || '?').charAt(0)}</span>`;
   const link = `<a href="${l.url}" target="_blank" rel="noopener"
-      class="btn-sm" ${bright.slice(0, -1)};text-decoration:none">Apply on ${platformLabel(l)} ↗</a>`;
+      class="btn-sm tile-btn" style="text-decoration:none">Apply on ${platformLabel(l)} ↗</a>`;
 
   let actions, note = '';
   switch (l.status) {
-    case 'auto':       // no custom questions — we can upload the résumé & submit
+    case 'auto':
       actions = `
-        <label class="bulk-check"><input type="checkbox" onchange="toggleSelect(${i}, this.checked)" ${selected.has(i) ? 'checked' : ''}> Select</label>
-        <button class="btn-sm" ${bright} onclick="directApply(${i})">⚡ Auto-apply</button>`;
-      note = 'No custom questions — one-click apply with your résumé';
+        <label class="tile-check"><input type="checkbox" onchange="toggleSelect(${i}, this.checked)" ${selected.has(i) ? 'checked' : ''}> Select</label>
+        <button class="btn-sm tile-btn" onclick="directApply(${i})">⚡ Auto-apply</button>`;
       break;
-    case 'submitting':
-      actions = `<span class="listing-sub"><span class="spinner"></span>Applying…</span>`;
-      break;
-    case 'submitted':
-      actions = `<span class="listing-sub" style="color:var(--green)">✓ Applied</span>`;
-      break;
-    case 'skipped':
-      actions = `<span class="listing-sub" style="color:var(--muted)">Skipped</span>`;
-      break;
-    case 'error':
-      actions = link;
-      note = `<span style="color:var(--red)">✗ ${l.error || 'Auto-apply failed'} — apply manually</span>`;
-      break;
-    default:           // 'link' — custom questions or incomplete profile
-      actions = link;
-      note = l.reason || 'Apply manually on Internshala';
+    case 'submitting': actions = `<span class="tile-status"><span class="spinner"></span> Applying…</span>`; break;
+    case 'submitted':  actions = `<span class="tile-status">✓ Applied</span>`; break;
+    case 'skipped':    actions = `<span class="tile-status">Skipped</span>`; break;
+    case 'error':      actions = link; note = `✗ ${l.error || 'Auto-apply failed'} — apply manually`; break;
+    default:           actions = link; note = l.reason || 'Apply manually';
   }
 
   return `
-    <div class="listing-meta">
-      <span class="listing-title">${platTag}${roleTag}${l.title}</span>
-      <span class="listing-sub">${l.company} · ${l.stipend}</span>
-      ${note ? `<span class="listing-sub" style="font-size:11px">${note}</span>` : ''}
+    <div class="tile-top">
+      ${logo}
+      <div class="tile-tags">${platTag}${roleTag}</div>
     </div>
-    <div class="listing-actions">${actions}</div>`;
+    <div class="tile-body">
+      <span class="tile-title">${l.title}</span>
+      <span class="tile-sub">${l.company}</span>
+      <span class="tile-stipend">${l.stipend}</span>
+      ${note ? `<span class="tile-note">${note}</span>` : ''}
+    </div>
+    <div class="tile-actions">${actions}</div>`;
 }
 
 function badgeLabel(s) {

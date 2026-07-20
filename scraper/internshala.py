@@ -117,18 +117,21 @@ def search_internships(context: BrowserContext, filters: dict) -> list[dict]:
             title_el   = card.query_selector(".job-internship-name a, .job-title-href, h2 a")
             company_el = card.query_selector(".company-name, .company_name p")
             stipend_el = card.query_selector(".stipend")
+            logo_el    = card.query_selector("img")
 
             if not title_el:
                 continue
 
             href = title_el.get_attribute("href") or ""
             full_url = f"{config.INTERNSHALA_BASE_URL}{href}" if href.startswith("/") else href
+            logo = (logo_el.get_attribute("src") or logo_el.get_attribute("data-src") or "") if logo_el else ""
 
             listings.append({
                 "title":   title_el.inner_text().strip(),
                 "company": company_el.inner_text().strip() if company_el else "Unknown",
                 "url":     full_url,
                 "stipend": stipend_el.inner_text().strip() if stipend_el else "Not mentioned",
+                "logo":    logo,
             })
         except Exception as e:
             print(f"[scraper] Card parse error: {e}")

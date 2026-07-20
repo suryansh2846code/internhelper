@@ -59,12 +59,14 @@ class UnstopAdapter(PlatformAdapter):
             if resp.ok:
                 items = ((resp.json() or {}).get("data") or {}).get("data") or []
                 for it in items:
+                    org = it.get("organisation") or {}
                     listings.append({
                         "id": it.get("id"),
                         "title": (it.get("title") or "").strip(),
-                        "company": (it.get("organisation") or {}).get("name", "Unknown"),
+                        "company": org.get("name", "Unknown"),
                         "url": it.get("seo_url") or f"https://unstop.com/{it.get('public_url', '')}",
                         "stipend": _stipend(it.get("jobDetail") or {}),
+                        "logo": org.get("logoUrl") or it.get("logoUrl2") or "",
                     })
         except Exception as e:
             print(f"[unstop] search error: {e}")
