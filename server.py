@@ -68,6 +68,7 @@ class MultiSearchParams(BaseModel):
     location: str = "work from home"
     stipend_min: int = 0
     max_per_role: int = 10
+    platform: str | None = None  # which job platform; defaults to Internshala
 
 class KeywordsUpdate(BaseModel):
     keywords: list[str]
@@ -92,6 +93,12 @@ class AppliedRemove(BaseModel):
 async def index():
     with open("frontend/index.html", "r") as f:
         return f.read()
+
+
+@app.get("/api/platforms")
+async def platforms():
+    from adapters import list_platforms
+    return list_platforms()
 
 
 # ── Routes: Auth / session ────────────────────────────────────────────────────
@@ -339,8 +346,9 @@ def _extract_keywords_task(role: str):
 
 def _run_multi_search(job_id: str, params: MultiSearchParams):
     try:
-        from scraper.internshala import search_internships, get_listing_details
+        from adapters import get_adapter
 
+        adapter = get_adapter(params.platform)
         seen_urls: set[str] = set()
 
         def work(context):
@@ -354,7 +362,7 @@ def _run_multi_search(job_id: str, params: MultiSearchParams):
                     "stipend_min": params.stipend_min,
                     "max_listings": params.max_per_role,
                 }
-                raw = search_internships(context, filters)
+                raw = adapter.search(context, filters)
                 for r in raw:
                     if r["url"] in seen_urls:
                         continue
@@ -365,6 +373,7 @@ def _run_multi_search(job_id: str, params: MultiSearchParams):
                     if r["url"] in _applied:
                         listings.append({
                             **r,
+                            "platform": adapter.name,
                             "matched_role": role,
                             "resume_path": resume_data["path"],
                             "jd": "", "questions": [], "profile_incomplete": False,
@@ -374,13 +383,13 @@ def _run_multi_search(job_id: str, params: MultiSearchParams):
                         continue
 
                     # Pace classification so rapid Apply clicks don't get the
-                    # Internshala session temporarily blocked.
+                    # platform session temporarily blocked.
                     time.sleep(config.SEARCH_CLASSIFY_DELAY)
 
                     # Open the listing to classify it: no custom questions -> we
                     # can auto-apply by uploading the résumé; questions (or an
                     # incomplete profile) -> hand back the direct link instead.
-                    details = get_listing_details(context, r["url"])
+                    details = adapter.classify(context, r["url"])
                     questions = details.get("questions", [])
                     profile_incomplete = details.get("profile_incomplete", False)
 
@@ -393,6 +402,7 @@ def _run_multi_search(job_id: str, params: MultiSearchParams):
 
                     listings.append({
                         **r,
+                        "platform": adapter.name,
                         "matched_role": role,
                         "resume_path": resume_data["path"],
                         "jd": details.get("jd", ""),
@@ -416,7 +426,7 @@ def _run_submit_batch(job_id: str, indices: list[int]):
     """Apply to each queued listing in turn. Runs on the shared browser thread
     one at a time, so all applies reuse the single window/tab. Reports progress
     on the job and paces applies to avoid throttling."""
-    from apply.form_filler import submit_application
+    from adapters import get_adapter
 
     job = _jobs.get(job_id)
     if not job:
@@ -424,9 +434,10 @@ def _run_submit_batch(job_id: str, indices: list[int]):
     batch = job["batch"]  # {total, done, applied, failed, running}
     for i, idx in enumerate(indices):
         listing = job["listings"][idx]
+        adapter = get_adapter(listing.get("platform"))
         try:
             ok, msg = _browser.run(
-                lambda context, l=listing: submit_application(context, l, l.get("final_answers") or {})
+                lambda context, l=listing, a=adapter: a.apply(context, l, l.get("final_answers") or {})
             )
             listing["status"] = "submitted" if ok else "error"
             if ok:
@@ -473,11 +484,12 @@ def _run_generate(job_id: str, listing_index: int):
 
 def _run_submit(job_id: str, listing_index: int):
     try:
-        from apply.form_filler import submit_application
+        from adapters import get_adapter
 
         listing = _jobs[job_id]["listings"][listing_index]
+        adapter = get_adapter(listing.get("platform"))
         ok, msg = _browser.run(
-            lambda context: submit_application(context, listing, listing["final_answers"])
+            lambda context: adapter.apply(context, listing, listing["final_answers"])
         )
         listing["status"] = "submitted" if ok else "error"
         if ok:
