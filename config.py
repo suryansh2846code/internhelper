@@ -24,3 +24,8 @@ INTERNSHALA_BASE_URL = "https://internshala.com"
 # pause between listings during classification and between bulk applications.
 SEARCH_CLASSIFY_DELAY = float(os.getenv("SEARCH_CLASSIFY_DELAY", "1.5"))
 APPLY_DELAY = float(os.getenv("APPLY_DELAY", "5"))
+
+# Applicant details some platforms (Unstop) require on every application and
+# don't pull from the profile. Set these in .env.
+USER_LOCATION = os.getenv("USER_LOCATION", "")            # city to type, e.g. "Faridabad"
+USER_COURSE_DURATION = os.getenv("USER_COURSE_DURATION", "")  # radio value, e.g. "4"

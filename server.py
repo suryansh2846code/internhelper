@@ -464,6 +464,7 @@ def _run_multi_search(job_id: str, params: MultiSearchParams):
                         "platform": adapter.name,
                         "matched_role": role,
                         "resume_path": resume_data["path"],
+                        "skills": resume_data.get("keywords", []),
                         "jd": details.get("jd", ""),
                         "questions": questions,
                         "profile_incomplete": profile_incomplete,

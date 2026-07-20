@@ -14,17 +14,29 @@ from urllib.parse import quote
 
 from playwright.sync_api import BrowserContext
 
+import config
 from adapters.base import PlatformAdapter
+from applicant.resume_pdf import ensure_pdf
 
 SEARCH_API = "https://unstop.com/api/public/opportunity/search-result"
 REGISTER_URL = "https://unstop.com/competitions/{id}/register"
 MAX_STEPS = 8
 
+# The step's main call-to-action (advance or submit) — anything but "Back".
+PRIMARY_CTA = (r"^\s*(next|save & next|continue|update details|submit|register"
+               r"|apply now|apply|confirm.*|proceed|done|finish)\s*$")
+
+SUCCESS_MARKERS = (
+    "registered successfully", "successfully registered", "registration successful",
+    "you have registered", "you are registered", "you're registered",
+    "already registered", "application submitted",
+)
+
 
 class UnstopAdapter(PlatformAdapter):
     name = "unstop"
     label = "Unstop"
-    supports_auto_apply = False  # flip True once the apply flow is validated
+    supports_auto_apply = True
     login_url = "https://unstop.com/login"
 
     def search(self, context: BrowserContext, filters: dict) -> list[dict]:
@@ -76,9 +88,18 @@ class UnstopAdapter(PlatformAdapter):
             if "/login" in page.url.lower():
                 return False, "Not logged into Unstop — log in and retry."
 
-            resume = listing.get("resume_path")
+            # Unstop only accepts PDF résumés — convert if needed.
+            resume = ensure_pdf(listing.get("resume_path"))
+
+            # Fill the per-application fields Unstop doesn't pull from the profile.
+            page.wait_for_timeout(1500)
+            _fill_candidate_details(page, listing)
+
             for _ in range(MAX_STEPS):
                 page.wait_for_timeout(1200)
+
+                if _is_success(page):
+                    return True, "Registered on Unstop."
 
                 # Open-ended question we can't safely auto-answer -> manual.
                 if _has_empty_visible_textarea(page):
@@ -86,29 +107,27 @@ class UnstopAdapter(PlatformAdapter):
 
                 _upload_resume(page, resume)
 
-                # Advance if there's a Next; otherwise the terminal button submits.
-                nxt = _find_button(page, r"^\s*(next|save & next|continue)\s*$")
-                if nxt:
-                    before = _step_signature(page)
-                    try:
-                        nxt.click(timeout=4000)
-                    except Exception:
-                        pass
-                    page.wait_for_timeout(1500)
-                    if _step_signature(page) == before:
-                        # Next didn't advance — required profile fields are empty.
-                        missing = _missing_required(page)
-                        hint = f" (missing: {', '.join(missing)})" if missing else ""
-                        return False, f"Complete your Unstop profile to auto-apply{hint}."
-                    continue
+                # Click the step's main CTA (Next / Update Details / Submit / …),
+                # not "Back". This unifies advancing and final submit.
+                cta = _find_button(page, PRIMARY_CTA)
+                if not cta:
+                    return False, "Couldn't find a submit/next button on the Unstop form."
 
-                term = _find_button(page, r"^\s*(submit|register|apply|confirm.*)\s*$")
-                if term:
-                    term.click()
-                    page.wait_for_timeout(4000)
-                    return _verify(page)
+                before = _step_signature(page)
+                try:
+                    cta.click(timeout=5000)
+                except Exception:
+                    pass
+                page.wait_for_timeout(3000)
 
-                return False, "Couldn't find Next/Submit on the Unstop form."
+                if _is_success(page):
+                    return True, "Registered on Unstop."
+                if _step_signature(page) == before:
+                    # Didn't advance — a required field is still blocking.
+                    missing = _missing_required(page)
+                    hint = f" (missing: {', '.join(missing)})" if missing else ""
+                    return False, f"Complete your Unstop profile to auto-apply{hint}."
+                # advanced to the next step -> loop
 
             return False, "Unstop form had too many steps — apply manually."
         except Exception as e:
@@ -148,6 +167,120 @@ def _find_button(page, pattern: str):
         if loc.nth(i).is_visible():
             return loc.nth(i)
     return None
+
+
+def _fill_candidate_details(page, listing: dict) -> None:
+    """Fill Unstop's per-application fields: location, course duration, skills."""
+    # Location — type the city and pick the matching autocomplete suggestion.
+    if config.USER_LOCATION:
+        try:
+            loc = page.wait_for_selector("input[name='player_location']", timeout=8000)
+        except Exception:
+            loc = None
+        if loc and not (loc.input_value() or "").strip():
+            for _ in range(2):  # retry — the suggestion must be clicked to register
+                try:
+                    loc.click()
+                    loc.fill("")
+                    loc.type(config.USER_LOCATION, delay=90)
+                    page.wait_for_timeout(2600)
+                    _click_suggestion(page, config.USER_LOCATION)
+                    page.wait_for_timeout(800)
+                    if (loc.input_value() or "").strip():
+                        break
+                except Exception:
+                    pass
+
+    # Course duration — select the configured radio value (or the only option).
+    try:
+        dur = config.USER_COURSE_DURATION
+        radio = (page.query_selector(f"input[name='course_duration'][value='{dur}']") if dur
+                 else page.query_selector("input[name='course_duration']"))
+        if radio and not radio.is_checked():
+            _click_input(page, radio)
+    except Exception:
+        pass
+
+    # Skills — add each from the matched résumé's keywords.
+    _fill_skills(page, listing.get("skills") or [])
+
+    # Accept the required Terms & Conditions checkbox.
+    _accept_terms(page)
+
+
+def _click_input(page, el) -> None:
+    """Select a radio/checkbox, falling back to clicking its label."""
+    try:
+        el.check(timeout=1500)
+        return
+    except Exception:
+        pass
+    try:
+        page.evaluate(
+            "(e) => { const id = e.id;"
+            " const lbl = (id && document.querySelector(`label[for='${id}']`)) || e.closest('label') || e.parentElement;"
+            " if (lbl) lbl.click(); }",
+            el,
+        )
+    except Exception:
+        pass
+
+
+def _accept_terms(page) -> None:
+    """Tick the required Terms & Conditions checkbox (not the newsletter one).
+
+    The real input is visually hidden by custom styling and sits below the fold,
+    so we match by surrounding text and click its label[for] after scrolling."""
+    for cb in page.query_selector_all("input[type=checkbox]"):
+        try:
+            if page.evaluate("(e) => e.checked", cb):
+                continue
+            ctx = (page.evaluate("(e) => (e.closest('label') || e.parentElement || {}).innerText || ''", cb) or "").lower()
+            if not any(k in ctx for k in ("term", "agree", "privacy", "registering")):
+                continue
+            cid = cb.get_attribute("id")
+            label = page.query_selector(f"label[for='{cid}']") if cid else None
+            if label:
+                label.scroll_into_view_if_needed()
+                label.click()
+            else:
+                page.evaluate("(e) => { const l = e.closest('label') || e.parentElement; if (l) l.click(); }", cb)
+            page.wait_for_timeout(400)
+            return
+        except Exception:
+            continue
+
+
+def _click_suggestion(page, term: str) -> bool:
+    term = term.lower()
+    for sel in ("[role=option]", "mat-option", ".autocomplete-item",
+                "[class*=suggestion]", "[class*=dropdown] li"):
+        for opt in page.query_selector_all(sel):
+            try:
+                if opt.is_visible() and term.split(",")[0] in (opt.inner_text() or "").lower():
+                    opt.click()
+                    page.wait_for_timeout(500)
+                    return True
+            except Exception:
+                continue
+    return False
+
+
+def _fill_skills(page, skills: list[str]) -> None:
+    inp = page.query_selector("input[placeholder*='skill' i]")
+    if not inp or not skills:
+        return
+    for skill in skills[:6]:
+        try:
+            inp.click()
+            inp.fill("")
+            inp.type(skill, delay=60)
+            page.wait_for_timeout(1500)
+            if not _click_suggestion(page, skill):
+                inp.press("Enter")
+            page.wait_for_timeout(500)
+        except Exception:
+            continue
 
 
 def _step_signature(page) -> str:
@@ -204,12 +337,19 @@ def _upload_resume(page, resume_path: str | None) -> None:
         pass
 
 
-def _verify(page) -> tuple[bool, str]:
-    body = (page.inner_text("body") or "").lower()
-    if any(s in body for s in ("registered successfully", "application submitted",
-                               "successfully registered", "you have registered",
-                               "already registered")):
-        return True, "Registered on Unstop."
-    if "/register" not in page.url.lower():
-        return True, "Submitted (redirected off the register page)."
-    return False, "Submit clicked but no confirmation detected — verify on Unstop."
+def _is_success(page) -> bool:
+    """True once Unstop confirms the registration.
+
+    On success the form redirects off /register (and /register/edit) back to the
+    opportunity page — that redirect is the reliable signal; a text match is a
+    backup."""
+    url = (page.url or "").lower()
+    if "/register" not in url and "/edit" not in url and (
+        "/internships/" in url or "/competitions/" in url or "/o/" in url
+    ):
+        return True
+    try:
+        body = (page.inner_text("body") or "").lower()
+    except Exception:
+        return False
+    return any(m in body for m in SUCCESS_MARKERS)
