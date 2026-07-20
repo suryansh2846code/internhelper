@@ -409,6 +409,12 @@ const DEMO_RESUMES = {
     keywords: ["react", "javascript", "typescript", "next.js", "ux design"] },
   backend: { filename: "Suryansh_Backend.docx", keyword_status: "ready",
     keywords: ["python", "node.js", "fastapi", "postgresql", "docker"] },
+  "product management": { filename: "Suryansh_PM.docx", keyword_status: "ready",
+    keywords: ["product management", "roadmapping", "user research", "analytics", "agile"] },
+  "data science": { filename: "Suryansh_Data.docx", keyword_status: "ready",
+    keywords: ["python", "pandas", "machine learning", "sql", "data visualization"] },
+  design: { filename: "Suryansh_Design.docx", keyword_status: "ready",
+    keywords: ["figma", "ui design", "ux design", "prototyping", "design systems"] },
 };
 function loadDemo() {
   currentJobId = 'demo';
