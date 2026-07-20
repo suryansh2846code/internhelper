@@ -522,18 +522,20 @@ function listingHTML(l, i) {
   const character = `/assets/illustration/${(i % 5) + 1}.png`;
 
   return `
-    <div class="tile-top">
-      ${logo}
-      <div class="tile-tags">${platTag}${roleTag}</div>
+    <div class="tile-main">
+      <div class="tile-top">
+        ${logo}
+        <div class="tile-tags">${platTag}${roleTag}</div>
+      </div>
+      <div class="tile-body">
+        <span class="tile-title">${l.title}</span>
+        <span class="tile-sub">${l.company}</span>
+        <span class="tile-stipend">${l.stipend}</span>
+        ${note ? `<span class="tile-note">${note}</span>` : ''}
+      </div>
+      <div class="tile-actions">${actions}</div>
     </div>
-    <div class="tile-hero"><img src="${character}" alt="" loading="lazy"></div>
-    <div class="tile-body">
-      <span class="tile-title">${l.title}</span>
-      <span class="tile-sub">${l.company}</span>
-      <span class="tile-stipend">${l.stipend}</span>
-      ${note ? `<span class="tile-note">${note}</span>` : ''}
-    </div>
-    <div class="tile-actions">${actions}</div>`;
+    <div class="tile-hero"><img src="${character}" alt="" loading="lazy"></div>`;
 }
 
 function badgeLabel(s) {
