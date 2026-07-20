@@ -2,13 +2,15 @@
 html { scroll-behavior: smooth; }
 
 :root {
-  --bg: #232327;         /* content background — lighter shade of black */
-  --sidebar: #0b0b0d;    /* nav bar — matte black */
-  --surface: #0b0b0d;    /* boxes/cards — darker, full matte black */
-  --surface2: #17171a;   /* inputs inside boxes */
-  --surface3: #202024;
-  --btn-idle: #202024;   /* buttons rest at a shade of black */
+  --bg: #2c2c31;         /* content background — lighter shade of black */
+  --sidebar: #050506;    /* nav bar — deep matte black */
+  --surface: #050506;    /* boxes/cards — deep matte black */
+  --surface2: #131315;   /* inputs inside boxes */
+  --surface3: #1a1a1d;
+  --btn-idle: #17171a;   /* buttons rest at a shade of black */
   --border: transparent;
+  /* subtle matte grain, applied over boxes/tiles/buttons */
+  --noise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.07'/%3E%3C/svg%3E");
   --text: #ececf1;
   --muted: #8b8b99;
 
@@ -26,14 +28,11 @@ html { scroll-behavior: smooth; }
 }
 
 body {
-  background-color: #17171a;
-  /* Textured sheet: soft colour glows + a faint dot grid */
-  background-image:
-    radial-gradient(1100px 620px at 12% -8%, rgba(124,92,255,.12), transparent 60%),
-    radial-gradient(1000px 520px at 105% 0%, rgba(255,210,63,.07), transparent 55%),
-    radial-gradient(900px 700px at 100% 110%, rgba(52,211,153,.06), transparent 60%),
-    radial-gradient(circle at center, rgba(255,255,255,.03) 1px, transparent 1px);
-  background-size: auto, auto, auto, 22px 22px;
+  background-color: var(--bg);
+  /* Lighter matte sheet: fine grain + a whisper of dot grid */
+  background-image: var(--noise),
+    radial-gradient(circle at center, rgba(255,255,255,.02) 1px, transparent 1px);
+  background-size: 160px 160px, 24px 24px;
   background-attachment: fixed;
   color: var(--text);
   font-family: 'Inter', system-ui, sans-serif;
@@ -55,8 +54,8 @@ h1, h2, h3, .brand { font-family: 'Space Grotesk', system-ui, sans-serif; }
 /* ── Sidebar (a floating rounded card) ──────────────────────────────────── */
 .sidebar {
   background-color: var(--sidebar);
-  background-image: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,0) 42%);
-  box-shadow: 0 12px 36px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.06);
+  background-image: var(--noise);
+  box-shadow: 0 12px 36px rgba(0,0,0,.45);
   border-radius: var(--radius);
   padding: 24px 16px;
   display: flex;
@@ -179,8 +178,8 @@ h1, h2, h3, .brand { font-family: 'Space Grotesk', system-ui, sans-serif; }
 
 .card {
   background-color: var(--surface);
-  background-image: linear-gradient(180deg, rgba(255,255,255,.045), rgba(255,255,255,0) 40%);
-  box-shadow: 0 12px 36px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.05);
+  background-image: var(--noise);
+  box-shadow: 0 12px 36px rgba(0,0,0,.45);
   border-radius: var(--radius);
   padding: 24px;
   margin-bottom: 20px;
@@ -310,12 +309,12 @@ input:focus { border-color: var(--accent); }
   flex-direction: column;
   gap: 16px;
   min-height: 190px;
-  /* gloss + lift so the tile looks like a glossy card on the sheet */
-  background-image: linear-gradient(150deg, rgba(255,255,255,.24), rgba(255,255,255,0) 55%);
-  box-shadow: 0 12px 30px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.28);
+  /* matte grain over the solid colour + a lift off the sheet */
+  background-image: var(--noise);
+  box-shadow: 0 12px 30px rgba(0,0,0,.35);
   transition: transform .12s, box-shadow .12s;
 }
-.listing-card:hover { transform: translateY(-3px); box-shadow: 0 18px 40px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.3); }
+.listing-card:hover { transform: translateY(-3px); box-shadow: 0 18px 40px rgba(0,0,0,.45); }
 
 .tile-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
 .tile-logo {
@@ -360,8 +359,8 @@ input:focus { border-color: var(--accent); }
 .statusbar {
   position: fixed; left: 16px; right: 16px; bottom: 16px; height: 52px;
   background-color: var(--sidebar);
-  background-image: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,0) 60%);
-  box-shadow: 0 12px 32px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.06);
+  background-image: var(--noise);
+  box-shadow: 0 12px 32px rgba(0,0,0,.5);
   border-radius: var(--radius-sm);
   display: flex; align-items: center; gap: 12px;
   padding: 0 20px; z-index: 50;
@@ -431,10 +430,10 @@ input[type="text"]:focus, input[type="number"]:focus, textarea.answer-box:focus,
   box-shadow: 0 0 0 2px var(--accent);
 }
 
-/* ── Matte buttons: rest at a shade of black, pop their colour on hover ────── */
+/* ── Matte buttons: rest at a grainy shade of black, pop colour on hover ──── */
 .btn-primary, .btn-sm, .btn-ghost, .btn-relogin, .btn-upload, .btn-skip, #search-btn {
-  background: var(--btn-idle); color: #cfcfd4;
-  transition: background .15s, color .15s, transform .1s;
+  background-color: var(--btn-idle); background-image: var(--noise); color: #cfcfd4;
+  transition: background-color .15s, color .15s, transform .1s;
 }
 #search-btn:hover { background: var(--accent); color: #fff; }
 .btn-upload:hover { background: var(--green); color: #000; }
