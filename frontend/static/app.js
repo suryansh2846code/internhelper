@@ -402,9 +402,18 @@ const DEMO_LISTINGS = [
   { title: "Data Analyst Internship", company: "Acme Corp", url: "#", stipend: "₹12,000/month", platform: "internshala", matched_role: "data", status: "error", error: "Auto-apply failed", logo: "" },
   { title: "UI/UX Design Internship", company: "Pixel Studio", url: "#", stipend: "₹8,000/month", platform: "unstop", matched_role: "design", status: "auto", logo: "" },
 ];
+const DEMO_RESUMES = {
+  fullstack: { filename: "Suryansh_Fullstack.docx", keyword_status: "ready",
+    keywords: ["full stack development", "react", "node.js", "python", "web development", "backend development"] },
+  frontend: { filename: "Suryansh_Frontend.docx", keyword_status: "ready",
+    keywords: ["react", "javascript", "typescript", "next.js", "ux design"] },
+  backend: { filename: "Suryansh_Backend.docx", keyword_status: "ready",
+    keywords: ["python", "node.js", "fastapi", "postgresql", "docker"] },
+};
 function loadDemo() {
   currentJobId = 'demo';
   activeFilter = 'all';
+  renderResumeCards(DEMO_RESUMES);
   renderListings(DEMO_LISTINGS);
   document.getElementById('results-panel').scrollIntoView({ behavior: 'smooth' });
 }
