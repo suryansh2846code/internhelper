@@ -1,8 +1,15 @@
 """Unstop adapter.
 
-Search runs against Unstop's public JSON API (no login needed). Auto-apply is
-not implemented yet — it requires an Unstop account and their apply flow — so
-listings are surfaced as manual "Apply on Unstop" links for now."""
+Search runs against Unstop's public JSON API (no login). Auto-apply drives the
+multi-step registration wizard at /competitions/{id}/register — Step 1 is
+pre-filled from the user's Unstop profile, so the flow is: upload résumé →
+click Next through the steps → final submit. Listings with open-ended questions
+(a visible textarea) are handed back for manual apply.
+
+Auto-apply is gated behind `supports_auto_apply` until validated on a real
+listing (there is no dry-run — the final step submits a real application)."""
+import os
+import re
 from urllib.parse import quote
 
 from playwright.sync_api import BrowserContext
@@ -10,12 +17,14 @@ from playwright.sync_api import BrowserContext
 from adapters.base import PlatformAdapter
 
 SEARCH_API = "https://unstop.com/api/public/opportunity/search-result"
+REGISTER_URL = "https://unstop.com/competitions/{id}/register"
+MAX_STEPS = 8
 
 
 class UnstopAdapter(PlatformAdapter):
     name = "unstop"
     label = "Unstop"
-    supports_auto_apply = False  # search-only until the apply flow is built
+    supports_auto_apply = False  # flip True once the apply flow is validated
 
     def search(self, context: BrowserContext, filters: dict) -> list[dict]:
         # Load Unstop once so the request context picks up its cookies/CSRF.
@@ -38,6 +47,7 @@ class UnstopAdapter(PlatformAdapter):
                 items = ((resp.json() or {}).get("data") or {}).get("data") or []
                 for it in items:
                     listings.append({
+                        "id": it.get("id"),
                         "title": (it.get("title") or "").strip(),
                         "company": (it.get("organisation") or {}).get("name", "Unknown"),
                         "url": it.get("seo_url") or f"https://unstop.com/{it.get('public_url', '')}",
@@ -48,15 +58,67 @@ class UnstopAdapter(PlatformAdapter):
         return listings
 
     def classify(self, context: BrowserContext, url: str) -> dict:
-        # Auto-apply isn't supported yet, so listings are handed off as links.
+        # Candidate details are pre-filled from the profile; question-detection
+        # is deferred to apply(), which bails if it hits an open-ended question.
         return {"jd": "", "questions": [], "profile_incomplete": False}
 
     def apply(self, context: BrowserContext, listing: dict, answers: dict) -> tuple[bool, str]:
-        return False, "Auto-apply for Unstop isn't available yet — apply on Unstop directly."
+        opp_id = listing.get("id") or _id_from_url(listing.get("url", ""))
+        if not opp_id:
+            return False, "Couldn't determine the Unstop opportunity id."
 
+        page = context.new_page()
+        try:
+            page.goto(REGISTER_URL.format(id=opp_id), wait_until="domcontentloaded", timeout=40_000)
+            page.wait_for_timeout(4000)
+
+            if "/login" in page.url.lower():
+                return False, "Not logged into Unstop — log in and retry."
+
+            resume = listing.get("resume_path")
+            for _ in range(MAX_STEPS):
+                page.wait_for_timeout(1200)
+
+                # Open-ended question we can't safely auto-answer -> manual.
+                if _has_empty_visible_textarea(page):
+                    return False, "Has custom questions — apply on Unstop manually."
+
+                _upload_resume(page, resume)
+
+                # Advance if there's a Next; otherwise the terminal button submits.
+                nxt = _find_button(page, r"^\s*(next|save & next|continue)\s*$")
+                if nxt:
+                    before = _step_signature(page)
+                    try:
+                        nxt.click(timeout=4000)
+                    except Exception:
+                        pass
+                    page.wait_for_timeout(1500)
+                    if _step_signature(page) == before:
+                        # Next didn't advance — required profile fields are empty.
+                        missing = _missing_required(page)
+                        hint = f" (missing: {', '.join(missing)})" if missing else ""
+                        return False, f"Complete your Unstop profile to auto-apply{hint}."
+                    continue
+
+                term = _find_button(page, r"^\s*(submit|register|apply|confirm.*)\s*$")
+                if term:
+                    term.click()
+                    page.wait_for_timeout(4000)
+                    return _verify(page)
+
+                return False, "Couldn't find Next/Submit on the Unstop form."
+
+            return False, "Unstop form had too many steps — apply manually."
+        except Exception as e:
+            return False, f"Error applying on Unstop: {e}"
+        finally:
+            page.close()
+
+
+# ── helpers ────────────────────────────────────────────────────────────────────
 
 def _stipend(job_detail: dict) -> str:
-    """Human-readable stipend from Unstop's jobDetail block."""
     if not job_detail.get("show_salary"):
         return "Not disclosed"
 
@@ -72,3 +134,81 @@ def _stipend(job_detail: dict) -> str:
     if lo or hi:
         return f"₹{(lo or hi):,}/month"
     return "Unpaid"
+
+
+def _id_from_url(url: str) -> str | None:
+    m = re.search(r"-(\d+)/?$", url)
+    return m.group(1) if m else None
+
+
+def _find_button(page, pattern: str):
+    loc = page.get_by_role("button", name=re.compile(pattern, re.I))
+    for i in range(loc.count()):
+        if loc.nth(i).is_visible():
+            return loc.nth(i)
+    return None
+
+
+def _step_signature(page) -> str:
+    """Fingerprint of the visible form fields, to tell whether Next advanced."""
+    try:
+        return page.evaluate("""() => Array.from(document.querySelectorAll('input,textarea,select'))
+            .filter(e => e.offsetParent !== null).map(e => e.name || e.type).sort().join('|')""")
+    except Exception:
+        return ""
+
+
+_FIELD_LABELS = {
+    "player_location": "location",
+    "others_course_specialization": "course specialization",
+    "player_firstname": "first name",
+    "player_name_last": "last name",
+}
+
+
+def _missing_required(page) -> list[str]:
+    """Friendly names of visible required fields that are still empty."""
+    try:
+        names = page.evaluate("""() => Array.from(document.querySelectorAll('input,textarea,select'))
+            .filter(e => e.offsetParent !== null && e.required && !String(e.value).trim())
+            .map(e => e.name || e.placeholder || e.type)""")
+    except Exception:
+        names = []
+    seen, out = set(), []
+    for n in names:
+        label = _FIELD_LABELS.get(n, n.replace("player_", "").replace("_", " "))
+        if label not in seen:
+            seen.add(label)
+            out.append(label)
+    return out
+
+
+def _has_empty_visible_textarea(page) -> bool:
+    try:
+        return page.evaluate("""() => Array.from(document.querySelectorAll('textarea'))
+            .some(t => t.offsetParent !== null && !t.value.trim())""")
+    except Exception:
+        return False
+
+
+def _upload_resume(page, resume_path: str | None) -> None:
+    if not resume_path or not os.path.exists(resume_path):
+        return
+    try:
+        fi = page.query_selector("input[type='file']")
+        if fi:
+            fi.set_input_files(resume_path)
+            page.wait_for_timeout(2500)
+    except Exception:
+        pass
+
+
+def _verify(page) -> tuple[bool, str]:
+    body = (page.inner_text("body") or "").lower()
+    if any(s in body for s in ("registered successfully", "application submitted",
+                               "successfully registered", "you have registered",
+                               "already registered")):
+        return True, "Registered on Unstop."
+    if "/register" not in page.url.lower():
+        return True, "Submitted (redirected off the register page)."
+    return False, "Submit clicked but no confirmation detected — verify on Unstop."
