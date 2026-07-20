@@ -16,7 +16,6 @@ class BrowserWorker:
         self._lock = threading.Lock()
         self._playwright = None
         self._context = None
-        self._alive = False
 
     def is_running(self) -> bool:
         return self._thread is not None and self._thread.is_alive()
@@ -62,22 +61,18 @@ class BrowserWorker:
         from auth.session import get_context
 
         self._playwright = sync_playwright().start()
-        try:
-            self._context = get_context(self._playwright)
-            self._alive = True
-        except Exception:
-            self._alive = False
 
         while True:
             item = self._tasks.get()
             if item is None:
                 break
             fn, box = item
-            if not self._alive:
-                box["error"] = RuntimeError("Browser failed to start (check login/session).")
-                box["event"].set()
-                continue
             try:
+                # (Re)build the browser if it's missing or was closed (user hit
+                # "Close browser window", closed the Chromium window, or it
+                # crashed). This makes the worker self-heal instead of reusing a
+                # dead context and failing with "browser has been closed".
+                self._ensure_context()
                 box["result"] = fn(self._context)
             except Exception as e:
                 box["error"] = e
@@ -86,20 +81,52 @@ class BrowserWorker:
 
         self._shutdown()
 
-    def _shutdown(self):
+    def _ensure_context(self):
+        """Ensure a live context/browser exists, rebuilding it if closed."""
+        from auth.session import get_context
+
+        if self._context is not None:
+            try:
+                browser = self._context.browser
+                if browser is not None and browser.is_connected():
+                    return
+            except Exception:
+                pass  # treat any probe failure as "dead" and rebuild
+
+        # Tear down whatever's left, then build fresh.
+        self._close_browser()
+        self._context = get_context(self._playwright)
+        self._install_single_tab(self._context)
+
+    def _install_single_tab(self, context):
+        """Keep exactly one tab and reuse it for every operation.
+
+        Creating a tab raises the window (stealing focus); navigating an
+        existing tab does not. So we open one persistent "home" tab, make
+        context.new_page() always return it, and make its close() a no-op. Every
+        search/apply then navigates this single tab instead of spawning new ones,
+        so the window stays quietly in the background and never disappears."""
+        home = context.new_page()
+        home.close = lambda *args, **kwargs: None      # never destroy the home tab
+        context.new_page = lambda *args, **kwargs: home
+
+    def _close_browser(self):
+        """Close the current context + browser window, ignoring errors."""
         try:
             if self._context is not None:
                 browser = self._context.browser
-                self._context.close()  # also stops the focus guardian
+                self._context.close()
                 if browser is not None:
                     browser.close()
         except Exception:
             pass
+        self._context = None
+
+    def _shutdown(self):
+        self._close_browser()
         try:
             if self._playwright is not None:
                 self._playwright.stop()
         except Exception:
             pass
-        self._context = None
         self._playwright = None
-        self._alive = False
