@@ -280,14 +280,14 @@ input:focus { border-color: var(--accent); }
 #resume-cards .resume-card:nth-child(6n+4) { background-color: var(--blue); }
 #resume-cards .resume-card:nth-child(6n+5) { background-color: var(--orange); }
 #resume-cards .resume-card:nth-child(6n)   { background-color: var(--accent); }
-.resume-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.resume-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; padding-left: 26px; }
 .resume-role { font-weight: 800; font-size: 15px; text-transform: capitalize; color: #000; }
 .resume-filename { color: rgba(0,0,0,.6); font-size: 12px; font-weight: 600; }
 .btn-delete {
-  position: absolute; top: 12px; right: 12px; z-index: 5;
+  position: absolute; top: 10px; left: 10px; z-index: 5;
   background: rgba(0,0,0,.72); color: #fff; border: none;
-  width: 24px; height: 24px; border-radius: 50%;
-  font-size: 13px; line-height: 1; cursor: pointer;
+  width: 22px; height: 22px; border-radius: 50%;
+  font-size: 12px; line-height: 1; cursor: pointer;
   display: grid; place-items: center;
   transition: background .15s, transform .1s;
 }
