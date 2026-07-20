@@ -333,7 +333,8 @@ function renderBulkBar(autoIndices) {
     </button>
     <button id="apply-selected-btn" class="btn-sm" onclick="applyBatch([...selected])" ${selected.size ? '' : 'disabled'}>
       Apply to selected (${selected.size})
-    </button>`;
+    </button>
+    <span id="bulk-progress" class="bulk-progress"></span>`;
 }
 
 function toggleSelect(index, checked) {
@@ -347,7 +348,8 @@ function toggleSelect(index, checked) {
 
 async function applyBatch(indices) {
   if (!indices.length) return;
-  if (!confirm(`Auto-apply to ${indices.length} internship${indices.length !== 1 ? 's' : ''}? This uploads your résumé and submits each application on Internshala.`)) return;
+  if (!confirm(`Auto-apply to ${indices.length} internship${indices.length !== 1 ? 's' : ''}? Each is submitted one at a time (with a short pause between) to avoid getting your account flagged.`)) return;
+  document.querySelectorAll('#bulk-bar button').forEach(b => b.disabled = true);
   indices.forEach(i => patchListingStatus(i, 'submitting'));
   await fetch('/api/submit-batch', {
     method: 'POST',
@@ -356,13 +358,24 @@ async function applyBatch(indices) {
   });
   const t = setInterval(async () => {
     const j = await (await fetch(`/api/job/${currentJobId}`)).json();
+    const prog = document.getElementById('bulk-progress');
+    if (prog && j.batch) {
+      const b = j.batch;
+      prog.textContent = b.running
+        ? `Applying ${b.done}/${b.total} · ✓${b.applied}${b.failed ? ` ✗${b.failed}` : ''}`
+        : `Done · ✓${b.applied} applied${b.failed ? ` · ✗${b.failed} failed` : ''}`;
+    }
     let pending = false;
     indices.forEach(i => {
       refreshListing(i, j.listings[i], j.listings);
       if (j.listings[i].status === 'submitting') pending = true;
     });
-    if (!pending) { clearInterval(t); renderListings(j.listings); }
-  }, 2000);
+    if (!pending && !(j.batch && j.batch.running)) {
+      clearInterval(t);
+      selected.clear();
+      setTimeout(() => renderListings(j.listings), 2500);  // let the summary linger
+    }
+  }, 1500);
 }
 
 function setFilter(role, listings) {

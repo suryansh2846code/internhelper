@@ -18,3 +18,9 @@ RESUME_PATH = os.getenv("RESUME_PATH", "./data/resume.txt")
 SESSION_PATH = "./data/sessions/internshala_session.json"
 
 INTERNSHALA_BASE_URL = "https://internshala.com"
+
+# Pacing to avoid Internshala throttling the account. Rapid, back-to-back Apply
+# clicks get the session temporarily blocked (redirected to registration), so we
+# pause between listings during classification and between bulk applications.
+SEARCH_CLASSIFY_DELAY = float(os.getenv("SEARCH_CLASSIFY_DELAY", "1.5"))
+APPLY_DELAY = float(os.getenv("APPLY_DELAY", "5"))

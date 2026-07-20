@@ -3,12 +3,17 @@ FastAPI server for InternHelper web UI.
 Run: uvicorn server:app --reload --port 8000
 """
 import os
+import time
 import uuid
+from datetime import datetime, timezone
+
 from fastapi import FastAPI, BackgroundTasks, UploadFile, File, Form
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+import config
+import store
 from browser_session import BrowserWorker
 
 app = FastAPI(title="InternHelper")
@@ -30,13 +35,26 @@ app.mount("/static", StaticFiles(directory="frontend/static"), name="static")
 # browser_session.BrowserWorker). Opened on first use, closed on demand.
 _browser = BrowserWorker()
 
-# ── In-memory stores ──────────────────────────────────────────────────────────
+# ── Stores (résumés + applied-history persist to disk; jobs stay in memory) ────
 
 # role -> { path, text, keywords, keyword_status }
-_resumes: dict[str, dict] = {}
+_resumes: dict[str, dict] = store.load_resumes()
+
+# url -> { title, company, applied_at } — listings already applied to
+_applied: dict[str, dict] = store.load_applied()
 
 # job_id -> { status, listings, error }
 _jobs: dict[str, dict] = {}
+
+
+def _mark_applied(listing: dict) -> None:
+    """Record a successful application so we never re-apply to it."""
+    _applied[listing["url"]] = {
+        "title": listing.get("title", ""),
+        "company": listing.get("company", ""),
+        "applied_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+    }
+    store.save_applied(_applied)
 
 # Internshala login state: status is idle | logging_in | ready | error
 _auth: dict = {"status": "idle", "error": None}
@@ -125,6 +143,7 @@ async def upload_resume(
         "keywords": [],
         "keyword_status": "extracting",  # extracting | ready | error
     }
+    store.save_resumes(_resumes)
     background_tasks.add_task(_extract_keywords_task, role)
     return {"ok": True, "role": role}
 
@@ -142,6 +161,7 @@ async def delete_resume(role: str):
     if os.path.exists(path):
         os.remove(path)
     del _resumes[role]
+    store.save_resumes(_resumes)
     return {"ok": True}
 
 
@@ -150,6 +170,7 @@ async def update_keywords(role: str, body: KeywordsUpdate):
     if role not in _resumes:
         return JSONResponse({"error": "Not found"}, status_code=404)
     _resumes[role]["keywords"] = body.keywords
+    store.save_resumes(_resumes)
     return {"ok": True}
 
 
@@ -159,6 +180,7 @@ async def retry_extract(role: str, background_tasks: BackgroundTasks):
         return JSONResponse({"error": "Not found"}, status_code=404)
     _resumes[role]["keyword_status"] = "extracting"
     _resumes[role].pop("error", None)
+    store.save_resumes(_resumes)
     background_tasks.add_task(_extract_keywords_task, role)
     return {"ok": True}
 
@@ -231,6 +253,7 @@ async def submit_batch(body: BatchSubmit, background_tasks: BackgroundTasks):
     if not queued:
         return JSONResponse({"error": "No auto-apply listings selected"}, status_code=400)
 
+    job["batch"] = {"total": len(queued), "done": 0, "applied": 0, "failed": 0, "running": True}
     background_tasks.add_task(_run_submit_batch, body.job_id, queued)
     return {"ok": True, "count": len(queued)}
 
@@ -279,6 +302,8 @@ def _extract_keywords_task(role: str):
     except Exception as e:
         _resumes[role]["keyword_status"] = "error"
         _resumes[role]["error"] = str(e)
+    finally:
+        store.save_resumes(_resumes)  # persist text + keywords (or the error)
 
 
 def _run_multi_search(job_id: str, params: MultiSearchParams):
@@ -303,6 +328,23 @@ def _run_multi_search(job_id: str, params: MultiSearchParams):
                     if r["url"] in seen_urls:
                         continue
                     seen_urls.add(r["url"])
+
+                    # Already applied in a past session? Show it as done and skip
+                    # opening it — saves an Apply click (which risks throttling).
+                    if r["url"] in _applied:
+                        listings.append({
+                            **r,
+                            "matched_role": role,
+                            "resume_path": resume_data["path"],
+                            "jd": "", "questions": [], "profile_incomplete": False,
+                            "reason": f"Already applied on {_applied[r['url']].get('applied_at', '')[:10]}",
+                            "status": "submitted",
+                        })
+                        continue
+
+                    # Pace classification so rapid Apply clicks don't get the
+                    # Internshala session temporarily blocked.
+                    time.sleep(config.SEARCH_CLASSIFY_DELAY)
 
                     # Open the listing to classify it: no custom questions -> we
                     # can auto-apply by uploading the résumé; questions (or an
@@ -341,24 +383,38 @@ def _run_multi_search(job_id: str, params: MultiSearchParams):
 
 def _run_submit_batch(job_id: str, indices: list[int]):
     """Apply to each queued listing in turn. Runs on the shared browser thread
-    one at a time, so all applies reuse the single window/tab."""
+    one at a time, so all applies reuse the single window/tab. Reports progress
+    on the job and paces applies to avoid throttling."""
     from apply.form_filler import submit_application
 
     job = _jobs.get(job_id)
     if not job:
         return
-    for idx in indices:
+    batch = job["batch"]  # {total, done, applied, failed, running}
+    for i, idx in enumerate(indices):
         listing = job["listings"][idx]
         try:
             ok, msg = _browser.run(
                 lambda context, l=listing: submit_application(context, l, l.get("final_answers") or {})
             )
             listing["status"] = "submitted" if ok else "error"
-            if not ok:
+            if ok:
+                _mark_applied(listing)
+                batch["applied"] += 1
+            else:
                 listing["error"] = msg
+                batch["failed"] += 1
         except Exception as e:
             listing["status"] = "error"
             listing["error"] = str(e)
+            batch["failed"] += 1
+        batch["done"] += 1
+
+        # Pause between applications so a burst doesn't get the account flagged.
+        if i < len(indices) - 1:
+            time.sleep(config.APPLY_DELAY)
+
+    batch["running"] = False
 
 
 def _run_generate(job_id: str, listing_index: int):
@@ -393,7 +449,9 @@ def _run_submit(job_id: str, listing_index: int):
             lambda context: submit_application(context, listing, listing["final_answers"])
         )
         listing["status"] = "submitted" if ok else "error"
-        if not ok:
+        if ok:
+            _mark_applied(listing)
+        else:
             listing["error"] = msg
     except Exception as e:
         _jobs[job_id]["listings"][listing_index]["status"] = "error"
