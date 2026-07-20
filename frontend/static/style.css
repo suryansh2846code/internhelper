@@ -250,21 +250,23 @@ input:focus { border-color: var(--accent); }
   border-radius: 14px; padding: 16px; margin-bottom: 10px;
   position: relative;
 }
-/* A cat-meme sticker peeking off the right edge, tilted */
+/* A cat-meme cutout peeking off the right edge, tilted; nudges on hover */
 .resume-card::after {
   content: ""; position: absolute; z-index: 3;
-  width: 92px; height: 92px;
-  background-size: cover; background-position: center;
-  border: 3px solid #fff; border-radius: 10px;
-  box-shadow: 0 8px 18px rgba(0,0,0,.5);
+  width: 124px; height: 112px;
+  background-size: contain; background-repeat: no-repeat; background-position: center;
+  filter: drop-shadow(0 6px 10px rgba(0,0,0,.45));
   pointer-events: none;
+  transform: rotate(var(--rot, 0deg));
+  transition: transform .3s cubic-bezier(.34, 1.56, .64, 1);
 }
-#resume-cards .resume-card:nth-child(6n+1)::after { background-image: url('/assets/resume-memes/1.jpg'); right: -20px; top: 16px;  transform: rotate(-10deg); }
-#resume-cards .resume-card:nth-child(6n+2)::after { background-image: url('/assets/resume-memes/2.png'); right: -20px; bottom: 16px; transform: rotate(9deg); }
-#resume-cards .resume-card:nth-child(6n+3)::after { background-image: url('/assets/resume-memes/3.jpg'); right: -18px; top: 38%; transform: rotate(16deg); }
-#resume-cards .resume-card:nth-child(6n+4)::after { background-image: url('/assets/resume-memes/4.jpg'); right: -22px; bottom: 14px; transform: rotate(-15deg); }
-#resume-cards .resume-card:nth-child(6n+5)::after { background-image: url('/assets/resume-memes/5.jpg'); right: -18px; top: 14px;  transform: rotate(7deg); }
-#resume-cards .resume-card:nth-child(6n)::after   { background-image: url('/assets/resume-memes/6.jpg'); right: -24px; top: 40%; transform: rotate(-20deg); }
+.resume-card:hover::after { transform: rotate(var(--rot, 0deg)) translateY(-9px) scale(1.1); }
+#resume-cards .resume-card:nth-child(6n+1)::after { --rot: -10deg; background-image: url('/assets/resume-memes/1.png'); right: -26px; top: 8px; }
+#resume-cards .resume-card:nth-child(6n+2)::after { --rot: 9deg;   background-image: url('/assets/resume-memes/2.png'); right: -26px; bottom: 4px; }
+#resume-cards .resume-card:nth-child(6n+3)::after { --rot: 16deg;  background-image: url('/assets/resume-memes/3.png'); right: -22px; top: 30%; }
+#resume-cards .resume-card:nth-child(6n+4)::after { --rot: -15deg; background-image: url('/assets/resume-memes/4.png'); right: -28px; bottom: 2px; }
+#resume-cards .resume-card:nth-child(6n+5)::after { --rot: 7deg;   background-image: url('/assets/resume-memes/5.png'); right: -24px; top: 4px; }
+#resume-cards .resume-card:nth-child(6n)::after   { --rot: -20deg; background-image: url('/assets/resume-memes/6.png'); right: -30px; top: 34%; }
 #resume-cards .resume-card:nth-child(6n+1) { background-color: var(--yellow); }
 #resume-cards .resume-card:nth-child(6n+2) { background-color: var(--green); }
 #resume-cards .resume-card:nth-child(6n+3) { background-color: var(--pink); }
@@ -358,7 +360,9 @@ input:focus { border-color: var(--accent); }
 .tile-hero img {
   max-height: 100%; max-width: 100%; object-fit: contain;
   filter: drop-shadow(0 8px 16px rgba(0,0,0,.35));
+  transition: transform .3s cubic-bezier(.34, 1.56, .64, 1);
 }
+.listing-card:hover .tile-hero img { transform: translateY(-10px) rotate(-4deg) scale(1.06); }
 .tile-body { display: flex; flex-direction: column; gap: 3px; margin-top: auto; }
 .tile-title {
   font-weight: 700; font-size: 16px; line-height: 1.25;
