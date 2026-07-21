@@ -1,0 +1,159 @@
+"""InternHelper local agent.
+
+Runs on the user's machine. Logs into the account, polls the server for queued
+jobs, runs them locally with Playwright (their session, their IP), and reports
+results back. This is the 'hands' in the Path-B split — the browser never runs
+on the server.
+
+Usage:
+  SERVER_URL=https://api.example.com AGENT_EMAIL=you@x.com AGENT_PASSWORD=... \
+    python -m agent.agent
+"""
+import os
+import sys
+import time
+import tempfile
+import traceback
+
+from agent.client import ServerClient
+
+POLL_INTERVAL = 4          # seconds between polls when idle
+APPLY_DELAY = 5            # pause between bulk applies (throttle safety)
+
+
+# ── Job handlers ────────────────────────────────────────────────────────────
+
+def handle_search(worker, client, payload: dict) -> dict:
+    """payload: {platforms, location, stipend_min, max_per_role, roles:[{role, keywords, resume_id}]}."""
+    from adapters import get_adapter, list_platforms
+    import time as _t
+
+    platforms = payload.get("platforms") or [p["name"] for p in list_platforms()]
+    roles = payload.get("roles") or []
+
+    def work(context):
+        seen, listings = set(), []
+        for platform in platforms:
+            adapter = get_adapter(platform)
+            for role in roles:
+                kws = " ".join(role.get("keywords", [])) or role.get("role", "")
+                filters = {"keywords": kws, "location": payload.get("location", "work from home"),
+                           "stipend_min": payload.get("stipend_min", 0),
+                           "max_listings": payload.get("max_per_role", 10)}
+                base = {"platform": adapter.name, "matched_role": role.get("role", ""),
+                        "resume_id": role.get("resume_id")}
+                for r in adapter.search(context, filters):
+                    if r["url"] in seen:
+                        continue
+                    seen.add(r["url"])
+                    if not adapter.supports_auto_apply:
+                        listings.append({**r, **base, "status": "link", "reason": f"Apply on {adapter.label}"})
+                        continue
+                    _t.sleep(1.5)
+                    details = adapter.classify(context, r["url"])
+                    q, pi = details.get("questions", []), details.get("profile_incomplete", False)
+                    status = "link" if (pi or q) else "auto"
+                    reason = (f"Complete your {adapter.label} profile" if pi
+                              else (f"{len(q)} custom question(s)" if q else ""))
+                    listings.append({**r, **base, "jd": details.get("jd", ""),
+                                     "questions": q, "reason": reason, "status": status})
+        return listings
+
+    return {"listings": worker.run(work)}
+
+
+def handle_apply(worker, client, payload: dict) -> dict:
+    """payload: {listing:{...}, resume_id}. Applies and returns the application record."""
+    from adapters import get_adapter
+
+    listing = dict(payload.get("listing") or {})
+    resume_id = payload.get("resume_id") or listing.get("resume_id")
+    if resume_id:
+        dest = os.path.join(tempfile.gettempdir(), f"resume_{resume_id}")
+        try:
+            listing["resume_path"] = client.download_resume(resume_id, dest)
+        except Exception as e:
+            print(f"[agent] résumé download failed: {e}")
+
+    adapter = get_adapter(listing.get("platform"))
+    ok, msg = worker.run(lambda ctx: adapter.apply(ctx, listing, listing.get("final_answers") or {}))
+    result = {"ok": ok, "message": msg}
+    if ok:
+        result["applications"] = [{
+            "url": listing["url"], "title": listing.get("title", ""),
+            "company": listing.get("company", ""), "role": listing.get("matched_role", ""),
+            "stipend": listing.get("stipend", ""), "platform": listing.get("platform", ""),
+            "status": "applied",
+        }]
+    return result
+
+
+def handle_sync(worker, client, payload: dict) -> dict:
+    """Read each platform's applications and return them for the server to merge."""
+    from adapters import list_platforms, get_adapter
+
+    def work(context):
+        found = []
+        for p in list_platforms():
+            adapter = get_adapter(p["name"])
+            try:
+                for a in adapter.sync_applications(context):
+                    found.append({**a, "platform": p["name"]})
+            except Exception as e:
+                print(f"[agent] sync {p['name']} error: {e}")
+        return found
+
+    return {"applications": worker.run(work)}
+
+
+HANDLERS = {"search": handle_search, "apply": handle_apply, "sync": handle_sync}
+
+
+# ── Main loop ───────────────────────────────────────────────────────────────
+
+def main():
+    server = os.getenv("SERVER_URL", "http://localhost:8000")
+    email = os.getenv("AGENT_EMAIL")
+    password = os.getenv("AGENT_PASSWORD")
+    if not email or not password:
+        sys.exit("Set AGENT_EMAIL and AGENT_PASSWORD (and optionally SERVER_URL).")
+
+    from browser_session import BrowserWorker
+
+    client = ServerClient.login(server, email, password)
+    worker = BrowserWorker()
+    print(f"[agent] connected to {server} as {email} — waiting for jobs…")
+
+    try:
+        while True:
+            try:
+                job = client.claim_job()
+            except Exception as e:
+                print(f"[agent] claim error: {e}")
+                time.sleep(POLL_INTERVAL)
+                continue
+
+            if not job:
+                time.sleep(POLL_INTERVAL)
+                continue
+
+            print(f"[agent] job {job['id']} ({job['kind']}) — running")
+            handler = HANDLERS.get(job["kind"])
+            try:
+                if not handler:
+                    client.report(job["id"], "failed", error=f"unknown job kind {job['kind']}")
+                    continue
+                result = handler(worker, client, job.get("payload") or {})
+                client.report(job["id"], "done", result=result)
+                print(f"[agent] job {job['id']} done")
+            except Exception as e:
+                traceback.print_exc()
+                client.report(job["id"], "failed", error=str(e))
+    except KeyboardInterrupt:
+        print("\n[agent] shutting down")
+    finally:
+        worker.close()
+
+
+if __name__ == "__main__":
+    main()

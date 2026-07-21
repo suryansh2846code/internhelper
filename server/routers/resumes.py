@@ -4,6 +4,7 @@ Reuses the existing résumé parser + LLM keyword extractor from the monorepo.""
 import os
 
 from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, BackgroundTasks
+from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -78,6 +79,15 @@ def update_keywords(resume_id: int, body: KeywordsUpdate,
     db.commit()
     db.refresh(r)
     return r
+
+
+@router.get("/{resume_id}/file")
+def download_resume(resume_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """The user's agent fetches the résumé file to upload during apply."""
+    r = db.get(Resume, resume_id)
+    if not r or r.user_id != user.id or not os.path.exists(r.storage_path):
+        raise HTTPException(404, "Not found")
+    return FileResponse(r.storage_path, filename=r.filename or os.path.basename(r.storage_path))
 
 
 @router.delete("/{resume_id}")
