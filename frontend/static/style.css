@@ -526,3 +526,27 @@ input[type="text"]:focus, input[type="number"]:focus, textarea.answer-box:focus,
 .tile-btn:hover { background: #fff; color: #000; opacity: 1; }
 .bulk-bar { border-radius: var(--radius-sm); }
 .nav-item { border-radius: var(--radius-sm); }
+
+/* ── Auth gate ───────────────────────────────────────────────────────────── */
+.auth-screen {
+  position: fixed; inset: 0; z-index: 200;
+  display: grid; place-items: center;
+  background-color: var(--bg); background-image: var(--noise);
+}
+.auth-card {
+  width: min(380px, 90vw);
+  background-color: var(--surface); background-image: var(--noise);
+  border-radius: var(--radius); box-shadow: 0 20px 55px rgba(0,0,0,.55);
+  padding: 32px; display: flex; flex-direction: column; gap: 14px;
+}
+.auth-card .brand { padding: 0 0 6px; }
+.auth-card h2 { font-size: 20px; }
+.auth-card input {
+  background: var(--surface2); border: none; border-radius: var(--radius-sm);
+  padding: 12px 14px; color: var(--text); font-size: 14px; font-family: inherit; outline: none;
+}
+.auth-card input:focus { box-shadow: 0 0 0 2px var(--accent); }
+.auth-card .btn-primary { margin-top: 4px; width: 100%; }
+.auth-err { color: var(--red); font-size: 13px; min-height: 16px; }
+.auth-toggle { font-size: 13px; color: var(--muted); }
+.auth-toggle a { color: var(--accent); text-decoration: none; }

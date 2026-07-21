@@ -7,10 +7,23 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/style.css?v=32" />
+  <link rel="stylesheet" href="/static/style.css?v=33" />
 </head>
 <body>
-  <div class="app">
+  <!-- AUTH GATE -->
+  <div id="auth-screen" class="auth-screen hidden">
+    <div class="auth-card">
+      <div class="brand"><span class="brand-mark">⚡</span> InternHelper</div>
+      <h2 id="auth-title">Log in</h2>
+      <input id="auth-email" type="email" placeholder="Email" autocomplete="email" />
+      <input id="auth-pw" type="password" placeholder="Password" autocomplete="current-password" />
+      <div id="auth-err" class="auth-err"></div>
+      <button id="auth-submit" class="btn-primary" onclick="submitAuth()">Log in</button>
+      <p id="auth-switch" class="auth-toggle">New here? <a href="#" onclick="toggleAuthMode();return false">Create an account</a></p>
+    </div>
+  </div>
+
+  <div class="app hidden">
 
     <!-- SIDEBAR -->
     <aside class="sidebar">
@@ -119,6 +132,6 @@
     </div>
   </div>
 
-  <script src="/static/app.js?v=32"></script>
+  <script src="/static/auth.js?v=33"></script>
 </body>
 </html>
