@@ -119,10 +119,25 @@ def main():
         sys.exit("Set AGENT_EMAIL and AGENT_PASSWORD (and optionally SERVER_URL).")
 
     from browser_session import BrowserWorker
+    from agent.session import ensure_platform_login, open_profile
 
     client = ServerClient.login(server, email, password)
-    worker = BrowserWorker()
-    print(f"[agent] connected to {server} as {email} — waiting for jobs…")
+    print(f"[agent] connected to {server} as {email}")
+
+    # One-time (per machine) platform login: opens the local profile, checks
+    # Internshala/Unstop, and pauses for a manual login if needed. Skippable via
+    # AGENT_SKIP_LOGIN_CHECK=1 once you know you're logged in.
+    if os.getenv("AGENT_SKIP_LOGIN_CHECK") != "1":
+        from playwright.sync_api import sync_playwright
+        try:
+            with sync_playwright() as pw:
+                ensure_platform_login(pw)
+        except Exception as e:
+            print(f"[agent] login check skipped ({e})")
+
+    # Jobs run against that same persistent profile.
+    worker = BrowserWorker(context_factory=open_profile)
+    print("[agent] waiting for jobs…")
 
     try:
         while True:

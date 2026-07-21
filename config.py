@@ -17,6 +17,10 @@ RESUME_PATH = os.getenv("RESUME_PATH", "./data/resume.txt")
 
 SESSION_PATH = "./data/sessions/internshala_session.json"
 
+# Path-B agent: a persistent local Chromium profile so the user's manual logins
+# to Internshala/Unstop stick across runs (we never store platform passwords).
+AGENT_PROFILE_DIR = os.getenv("AGENT_PROFILE_DIR", "./data/agent-profile")
+
 INTERNSHALA_BASE_URL = "https://internshala.com"
 
 # Pacing to avoid Internshala throttling the account. Rapid, back-to-back Apply

@@ -10,7 +10,11 @@ import threading
 
 
 class BrowserWorker:
-    def __init__(self):
+    def __init__(self, context_factory=None):
+        # context_factory(playwright) -> BrowserContext. Defaults to the saved-
+        # session Internshala context; the Path-B agent passes a persistent
+        # local profile instead (agent.session.open_profile).
+        self._context_factory = context_factory
         self._tasks: queue.Queue = queue.Queue()
         self._thread: threading.Thread | None = None
         self._lock = threading.Lock()
@@ -58,7 +62,6 @@ class BrowserWorker:
 
     def _run(self):
         from playwright.sync_api import sync_playwright
-        from auth.session import get_context
 
         self._playwright = sync_playwright().start()
 
@@ -83,20 +86,29 @@ class BrowserWorker:
 
     def _ensure_context(self):
         """Ensure a live context/browser exists, rebuilding it if closed."""
-        from auth.session import get_context
-
         if self._context is not None:
             try:
                 browser = self._context.browser
-                if browser is not None and browser.is_connected():
+                if browser is None:
+                    # Persistent context has no separate Browser object; probing
+                    # .pages raises once the window/context is gone.
+                    _ = self._context.pages
+                    return
+                if browser.is_connected():
                     return
             except Exception:
                 pass  # treat any probe failure as "dead" and rebuild
 
         # Tear down whatever's left, then build fresh.
         self._close_browser()
-        self._context = get_context(self._playwright)
+        self._context = self._make_context()
         self._install_single_tab(self._context)
+
+    def _make_context(self):
+        if self._context_factory is not None:
+            return self._context_factory(self._playwright)
+        from auth.session import get_context
+        return get_context(self._playwright)
 
     def _install_single_tab(self, context):
         """Keep exactly one tab and reuse it for every operation.
@@ -106,7 +118,9 @@ class BrowserWorker:
         context.new_page() always return it, and make its close() a no-op. Every
         search/apply then navigates this single tab instead of spawning new ones,
         so the window stays quietly in the background and never disappears."""
-        home = context.new_page()
+        # A persistent context launches with one page already open — reuse it
+        # instead of adding a second blank tab.
+        home = context.pages[0] if context.pages else context.new_page()
         home.close = lambda *args, **kwargs: None      # never destroy the home tab
         context.new_page = lambda *args, **kwargs: home
 
