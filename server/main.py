@@ -21,6 +21,15 @@ def health():
     return {"ok": True}
 
 
+@app.get("/api/platforms")
+def platforms():
+    # Static here (the brain doesn't import the browser stack).
+    return [
+        {"name": "internshala", "label": "Internshala", "supports_auto_apply": True},
+        {"name": "unstop", "label": "Unstop", "supports_auto_apply": True},
+    ]
+
+
 app.include_router(auth.router)
 app.include_router(resumes.router)
 app.include_router(applications.router)
@@ -28,8 +37,10 @@ app.include_router(jobs.router)
 app.include_router(actions.router)
 
 # ── Serve the dashboard ──────────────────────────────────────────────────────
-_FRONTEND = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend")
+_ROOT = os.path.dirname(os.path.dirname(__file__))
+_FRONTEND = os.path.join(_ROOT, "frontend")
 app.mount("/static", StaticFiles(directory=os.path.join(_FRONTEND, "static")), name="static")
+app.mount("/assets", StaticFiles(directory=os.path.join(_ROOT, "assets")), name="assets")
 
 
 @app.middleware("http")

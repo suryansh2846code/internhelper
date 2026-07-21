@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/style.css?v=33" />
+  <link rel="stylesheet" href="/static/style.css?v=34" />
 </head>
 <body>
   <!-- AUTH GATE -->
@@ -38,9 +38,8 @@
       </nav>
 
       <div class="sidebar-foot">
-        <div id="platform-logins" class="login-btns"></div>
-        <button id="relogin-btn" class="btn-ghost" onclick="relogin()">Re-login to Internshala</button>
-        <span id="auth-status" class="status-msg"></span>
+        <p class="agent-hint">Run your local agent to search &amp; apply. Platform logins live in the agent.</p>
+        <button class="btn-ghost" onclick="logout()">Log out</button>
       </div>
     </aside>
 
@@ -120,8 +119,7 @@
   <!-- BOTTOM STATUS BAR -->
   <footer class="statusbar">
     <span class="statusbar-dot" id="statusbar-dot"></span>
-    <span id="statusbar-info" class="statusbar-info">Ready</span>
-    <button id="stop-browser-btn" class="btn-ghost" onclick="closeBrowser()" style="display:none">✕ Close browser window</button>
+    <span id="statusbar-info" class="statusbar-info">Search &amp; apply run on your local agent</span>
   </footer>
 
   <!-- REVIEW MODAL -->
@@ -132,6 +130,6 @@
     </div>
   </div>
 
-  <script src="/static/auth.js?v=33"></script>
+  <script src="/static/auth.js?v=34"></script>
 </body>
 </html>
