@@ -5,7 +5,7 @@ the Playwright work runs in each user's local agent (see agent/)."""
 from fastapi import FastAPI
 
 from server.db import init_db
-from server.routers import auth, resumes, applications, jobs
+from server.routers import auth, resumes, applications, jobs, actions
 
 init_db()  # create tables if missing (idempotent); Alembic migrations come later
 
@@ -21,3 +21,4 @@ app.include_router(auth.router)
 app.include_router(resumes.router)
 app.include_router(applications.router)
 app.include_router(jobs.router)
+app.include_router(actions.router)
