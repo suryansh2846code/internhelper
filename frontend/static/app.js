@@ -427,10 +427,81 @@ function loadDemo() {
   document.getElementById('results-panel').scrollIntoView({ behavior: 'smooth' });
 }
 
+// ── Agent connection (Connect your computer) ─────────────────────────────────
+let agentConnected = false;
+async function loadAgentStatus() {
+  try {
+    const s = await (await apiFetch('/api/agent/status')).json();
+    agentConnected = !!s.connected;
+    const dot = document.getElementById('agent-dot');
+    const txt = document.getElementById('agent-status-text');
+    const btn = document.getElementById('connect-btn');
+    if (dot) dot.className = 'agent-dot ' + (agentConnected ? 'on' : 'off');
+    if (txt) txt.textContent = agentConnected
+      ? `Computer connected${s.device_name ? ' · ' + s.device_name : ''}`
+      : 'No computer connected';
+    if (btn) btn.textContent = agentConnected ? '🖥️ Connected — reconnect' : '🖥️ Connect your computer';
+    const sbDot = document.getElementById('statusbar-dot');
+    const sbInfo = document.getElementById('statusbar-info');
+    if (sbDot) sbDot.className = 'statusbar-dot ' + (agentConnected ? 'on' : 'off');
+    if (sbInfo) sbInfo.textContent = agentConnected
+      ? 'Your computer is connected — search & apply are ready'
+      : 'Connect your computer to run search & apply';
+  } catch {}
+}
+
+async function connectComputer() {
+  const overlay = document.getElementById('modal-overlay');
+  const content = document.getElementById('modal-content');
+  content.innerHTML = `<div class="connect-modal"><h2>Connect your computer</h2>
+    <p class="connect-sub">Loading…</p></div>`;
+  overlay.classList.remove('hidden');
+  let data;
+  try { data = await (await apiFetch('/api/agent/pair-token', { method: 'POST' })).json(); }
+  catch { content.innerHTML = `<div class="connect-modal"><h2>Connect your computer</h2>
+    <p class="connect-sub">Couldn't create a pairing code. Try again.</p></div>`; return; }
+
+  content.innerHTML = `<div class="connect-modal">
+    <h2>Connect your computer</h2>
+    <p class="connect-sub">The search &amp; apply run on <b>your</b> machine with your logins.
+      Run this once in a terminal — it pairs this computer (code expires in ${data.expires_in_min} min):</p>
+    <div class="cmd-box"><code id="pair-cmd">${data.command}</code>
+      <button class="btn-sm" onclick="copyPairCmd()">Copy</button></div>
+    <ol class="connect-steps">
+      <li>Open Terminal in the project folder.</li>
+      <li>Paste the command above and press Enter.</li>
+      <li>A Chrome window opens — log into Internshala &amp; Unstop once.</li>
+    </ol>
+    <p class="connect-note">Waiting for your computer to connect… this box updates automatically.</p>
+  </div>`;
+
+  // Poll status; auto-close when the computer connects.
+  const started = Date.now();
+  const t = setInterval(async () => {
+    await loadAgentStatus();
+    if (agentConnected) {
+      clearInterval(t);
+      const note = document.querySelector('.connect-note');
+      if (note) { note.textContent = '✓ Connected! You can close this.'; note.classList.add('ok'); }
+    } else if (Date.now() - started > 5 * 60 * 1000) {
+      clearInterval(t);
+    }
+  }, 4000);
+}
+function copyPairCmd() {
+  const el = document.getElementById('pair-cmd');
+  if (el) navigator.clipboard.writeText(el.textContent).then(() => {
+    const b = event.target; const o = b.textContent; b.textContent = 'Copied ✓';
+    setTimeout(() => b.textContent = o, 1500);
+  });
+}
+
 // ── Boot ─────────────────────────────────────────────────────────────────────
 loadPlatforms();
 loadResumes();
 refreshAppliedCount();
+loadAgentStatus();
+setInterval(loadAgentStatus, 12000);
 
 function closeModal(e) { if (e.target === document.getElementById('modal-overlay')) closeModalDirect(); }
 function closeModalDirect() { document.getElementById('modal-overlay').classList.add('hidden'); }

@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/style.css?v=36" />
+  <link rel="stylesheet" href="/static/style.css?v=37" />
 </head>
 <body>
   <!-- AUTH GATE -->
@@ -38,7 +38,11 @@
       </nav>
 
       <div class="sidebar-foot">
-        <p class="agent-hint">Run your local agent to search &amp; apply. Platform logins live in the agent.</p>
+        <div id="agent-status" class="agent-status" title="Your computer runs the search &amp; apply">
+          <span class="agent-dot" id="agent-dot"></span>
+          <span id="agent-status-text">Checking your computer…</span>
+        </div>
+        <button class="btn-connect" id="connect-btn" onclick="connectComputer()">🖥️ Connect your computer</button>
         <button class="btn-ghost" onclick="logout()">Log out</button>
       </div>
     </aside>
@@ -131,6 +135,6 @@
     </div>
   </div>
 
-  <script src="/static/auth.js?v=36"></script>
+  <script src="/static/auth.js?v=37"></script>
 </body>
 </html>
