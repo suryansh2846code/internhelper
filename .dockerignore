@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+.git/
+data/
+.env
+assets/illustration/*.png
+node_modules/
+.playwright/

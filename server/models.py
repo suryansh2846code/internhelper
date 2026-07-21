@@ -1,7 +1,7 @@
 """Database models — per-user résumés, applications, and the agent job queue."""
 from datetime import datetime, timezone
 
-from sqlalchemy import String, Text, ForeignKey, DateTime, JSON, func
+from sqlalchemy import String, Text, ForeignKey, DateTime, JSON, LargeBinary, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from server.db import Base
@@ -31,7 +31,7 @@ class Resume(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     role: Mapped[str] = mapped_column(String(120))
     filename: Mapped[str] = mapped_column(String(255), default="")
-    storage_path: Mapped[str] = mapped_column(String(512), default="")
+    content: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)  # file bytes (stateless)
     text: Mapped[str] = mapped_column(Text, default="")
     keywords: Mapped[list] = mapped_column(JSON, default=list)
     keyword_status: Mapped[str] = mapped_column(String(20), default="ready")  # extracting|ready|error
