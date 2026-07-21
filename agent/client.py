@@ -15,6 +15,29 @@ class ServerClient:
         r.raise_for_status()
         return cls(base, r.json()["access_token"])
 
+    @classmethod
+    def with_key(cls, base_url: str, agent_key: str) -> "ServerClient":
+        """Use a stored device key (from a previous pairing)."""
+        return cls(base_url.rstrip("/"), agent_key)
+
+    @classmethod
+    def pair(cls, base_url: str, pair_token: str, device_name: str) -> tuple["ServerClient", str]:
+        """Exchange a one-time pairing token for a durable device key."""
+        base = base_url.rstrip("/")
+        r = requests.post(f"{base}/api/agent/pair", timeout=30,
+                          json={"token": pair_token, "device_name": device_name})
+        r.raise_for_status()
+        key = r.json()["agent_key"]
+        return cls(base, key), key
+
+    def heartbeat(self) -> bool:
+        """Mark this device online. Returns False on failure (e.g. web-session token)."""
+        try:
+            r = self.s.post(f"{self.base}/api/agent/heartbeat", timeout=15)
+            return r.ok
+        except Exception:
+            return False
+
     def claim_job(self) -> dict | None:
         r = self.s.post(f"{self.base}/api/jobs/claim", timeout=30)
         r.raise_for_status()

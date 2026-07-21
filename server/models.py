@@ -22,6 +22,7 @@ class User(Base):
     resumes: Mapped[list["Resume"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     applications: Mapped[list["Application"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     jobs: Mapped[list["Job"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    devices: Mapped[list["AgentDevice"]] = relationship(back_populates="user", cascade="all, delete-orphan")
 
 
 class Resume(Base):
@@ -55,6 +56,19 @@ class Application(Base):
     applied_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     user: Mapped[User] = relationship(back_populates="applications")
+
+
+class AgentDevice(Base):
+    """A user's paired local agent (their computer). Heartbeats mark it online."""
+    __tablename__ = "agent_devices"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    name: Mapped[str] = mapped_column(String(120), default="my computer")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    last_seen: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    user: Mapped[User] = relationship(back_populates="devices")
 
 
 class Job(Base):

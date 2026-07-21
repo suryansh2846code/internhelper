@@ -11,14 +11,66 @@ Usage:
 """
 import os
 import sys
+import json
 import time
+import socket
 import tempfile
+import threading
 import traceback
 
 from agent.client import ServerClient
 
 POLL_INTERVAL = 4          # seconds between polls when idle
 APPLY_DELAY = 5            # pause between bulk applies (throttle safety)
+HEARTBEAT_SECS = 15        # how often to tell the server we're online
+
+# Durable device key from pairing lives here so re-runs skip pairing.
+IDENTITY_PATH = os.path.expanduser("~/.internhelper/agent.json")
+
+
+def _load_identity() -> dict:
+    try:
+        with open(IDENTITY_PATH) as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def _save_identity(data: dict) -> None:
+    os.makedirs(os.path.dirname(IDENTITY_PATH), exist_ok=True)
+    with open(IDENTITY_PATH, "w") as f:
+        json.dump(data, f)
+
+
+def _connect(server: str) -> ServerClient:
+    """Resolve auth: stored device key → pairing token → email/password."""
+    ident = _load_identity()
+    key = ident.get("agent_key")
+    if key and ident.get("server") == server:
+        print("[agent] using saved device key")
+        return ServerClient.with_key(server, key)
+
+    pair_token = os.getenv("AGENT_PAIR_TOKEN")
+    if pair_token:
+        client, key = ServerClient.pair(server, pair_token, device_name=socket.gethostname())
+        _save_identity({"server": server, "agent_key": key})
+        print("[agent] paired — device key saved to ~/.internhelper/agent.json")
+        return client
+
+    email, password = os.getenv("AGENT_EMAIL"), os.getenv("AGENT_PASSWORD")
+    if email and password:
+        return ServerClient.login(server, email, password)
+
+    sys.exit("No credentials. Set AGENT_PAIR_TOKEN (from the web app's Connect panel), "
+             "or AGENT_EMAIL + AGENT_PASSWORD.")
+
+
+def _start_heartbeat(client: ServerClient) -> None:
+    def beat():
+        while True:
+            client.heartbeat()
+            time.sleep(HEARTBEAT_SECS)
+    threading.Thread(target=beat, daemon=True).start()
 
 
 # ── Job handlers ────────────────────────────────────────────────────────────
@@ -113,16 +165,13 @@ HANDLERS = {"search": handle_search, "apply": handle_apply, "sync": handle_sync}
 
 def main():
     server = os.getenv("SERVER_URL", "http://localhost:8000")
-    email = os.getenv("AGENT_EMAIL")
-    password = os.getenv("AGENT_PASSWORD")
-    if not email or not password:
-        sys.exit("Set AGENT_EMAIL and AGENT_PASSWORD (and optionally SERVER_URL).")
 
     from browser_session import BrowserWorker
     from agent.session import ensure_platform_login, open_profile
 
-    client = ServerClient.login(server, email, password)
-    print(f"[agent] connected to {server} as {email}")
+    client = _connect(server)
+    _start_heartbeat(client)
+    print(f"[agent] connected to {server}")
 
     # One-time (per machine) platform login: opens the local profile, checks
     # Internshala/Unstop, and pauses for a manual login if needed. Skippable via

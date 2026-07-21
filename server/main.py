@@ -9,7 +9,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from server.db import init_db
-from server.routers import auth, resumes, applications, jobs, actions
+from server.routers import auth, resumes, applications, jobs, actions, agent
 
 init_db()  # create tables if missing (idempotent); Alembic migrations come later
 
@@ -35,6 +35,7 @@ app.include_router(resumes.router)
 app.include_router(applications.router)
 app.include_router(jobs.router)
 app.include_router(actions.router)
+app.include_router(agent.router)
 
 # ── Serve the dashboard ──────────────────────────────────────────────────────
 _ROOT = os.path.dirname(os.path.dirname(__file__))

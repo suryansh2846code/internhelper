@@ -73,3 +73,26 @@ class JobResult(BaseModel):
     status: str          # done | failed
     result: dict = {}
     error: str = ""
+
+
+# ── Agent pairing / status ──
+class PairTokenOut(BaseModel):
+    token: str
+    expires_in_min: int
+    command: str          # ready-to-run one-liner (terminal fallback)
+
+
+class PairIn(BaseModel):
+    token: str
+    device_name: str = "my computer"
+
+
+class PairOut(BaseModel):
+    agent_key: str
+    device_id: int
+
+
+class AgentStatusOut(BaseModel):
+    connected: bool
+    device_name: str | None = None
+    last_seen: datetime | None = None
