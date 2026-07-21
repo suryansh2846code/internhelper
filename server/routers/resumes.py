@@ -19,9 +19,12 @@ router = APIRouter(prefix="/api/resumes", tags=["resumes"])
 
 
 def _extract_keywords_task(resume_id: int, ext: str):
-    """Parse the résumé bytes and extract keywords via the LLM (background)."""
-    from applicant.resume_parser import load_resume
-    from applicant.keyword_extractor import extract_keywords
+    """Parse the résumé bytes and extract keywords via the LLM (background).
+
+    Any failure (bad import, parse error, LLM/key error) is caught and recorded
+    as keyword_status="error" so the UI never hangs on "extracting", and the
+    traceback is printed so it surfaces in the host's deploy logs."""
+    import traceback
 
     db = SessionLocal()
     try:
@@ -30,6 +33,9 @@ def _extract_keywords_task(resume_id: int, ext: str):
             return
         tmp = tempfile.NamedTemporaryFile(delete=False, suffix=ext or ".pdf")
         try:
+            from applicant.resume_parser import load_resume
+            from applicant.keyword_extractor import extract_keywords
+
             tmp.write(r.content)
             tmp.close()
             text = load_resume(path=tmp.name)
@@ -37,9 +43,14 @@ def _extract_keywords_task(resume_id: int, ext: str):
             r.keywords = extract_keywords(text, role_hint=r.role)
             r.keyword_status = "ready"
         except Exception:
+            print(f"[keyword-extract] resume {resume_id} failed:\n{traceback.format_exc()}",
+                  flush=True)
             r.keyword_status = "error"
         finally:
-            os.unlink(tmp.name)
+            try:
+                os.unlink(tmp.name)
+            except OSError:
+                pass
         db.commit()
     finally:
         db.close()
