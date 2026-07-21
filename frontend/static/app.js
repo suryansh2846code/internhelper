@@ -76,20 +76,33 @@ document.querySelectorAll('.nav-item[data-nav]').forEach(a => {
   });
 });
 
-// ── Applied history ─────────────────────────────────────────────────────────
+// ── Applications manager ──────────────────────────────────────────────────────
+let demoMode = false;
+const APP_STATUSES = ['applied', 'under review', 'interview', 'offer', 'rejected'];
+const DEMO_APPLIED = [
+  { url: "#a", title: "Full Stack Development Internship", company: "Codemax Digital", role: "fullstack", stipend: "₹15,000 - ₹25,000/month", platform: "unstop", status: "interview", applied_at: "2026-07-18T10:00:00+00:00" },
+  { url: "#b", title: "Backend Development Internship", company: "NayePankh Foundation", role: "backend", stipend: "Unpaid", platform: "internshala", status: "applied", applied_at: "2026-07-19T09:00:00+00:00" },
+  { url: "#c", title: "MERN Stack Developer Internship", company: "SwiftBL", role: "fullstack", stipend: "₹5,000 - ₹15,000/month", platform: "unstop", status: "under review", applied_at: "2026-07-20T14:00:00+00:00" },
+  { url: "#d", title: "Web Development Internship", company: "Nexora", role: "frontend", stipend: "₹10,000/month", platform: "unstop", status: "offer", applied_at: "2026-07-15T11:00:00+00:00" },
+  { url: "#e", title: "Data Analyst Internship", company: "Acme Corp", role: "data", stipend: "₹12,000/month", platform: "internshala", status: "rejected", applied_at: "2026-07-14T08:00:00+00:00" },
+];
+const _slug = s => (s || '').replace(/\s+/g, '-');
+
+async function fetchApplied() {
+  if (demoMode) return DEMO_APPLIED;
+  try { return await (await fetch('/api/applied')).json(); } catch { return []; }
+}
+
 async function refreshAppliedCount() {
-  try {
-    const items = await (await fetch('/api/applied')).json();
-    document.getElementById('applied-btn').textContent = `📋 Applied (${items.length})`;
-    return items;
-  } catch { return []; }
+  const items = await fetchApplied();
+  document.getElementById('applied-btn').textContent = `Applications (${items.length})`;
+  return items;
 }
 
 async function toggleApplied() {
   const panel = document.getElementById('applied-panel');
   if (!panel.classList.contains('hidden')) { panel.classList.add('hidden'); return; }
-  const items = await refreshAppliedCount();
-  renderApplied(items);
+  renderApplied(await refreshAppliedCount());
   panel.classList.remove('hidden');
   panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
@@ -97,23 +110,58 @@ async function toggleApplied() {
 function renderApplied(items) {
   const list = document.getElementById('applied-list');
   if (!items.length) {
-    list.innerHTML = `<p class="step-hint">No applications yet. Auto-applied listings show up here.</p>`;
+    list.innerHTML = `<p class="step-hint">No applications yet — every listing you auto-apply to lands here to track.</p>`;
     return;
   }
-  list.innerHTML = items.map(it => `
-    <div class="applied-row">
-      <div class="applied-meta">
-        <span class="applied-title">
-          ${it.role ? `<span class="role-tag">${it.role}</span>` : ''}
-          <a href="${it.url}" target="_blank" rel="noopener">${it.title || 'Listing'} ↗</a>
-        </span>
-        <span class="listing-sub">${it.company || ''}${it.stipend ? ` · ${it.stipend}` : ''} · applied ${(it.applied_at || '').slice(0, 10)}</span>
-      </div>
-      <button class="btn-sm btn-skip" onclick="removeApplied('${it.url.replace(/'/g, "\\'")}')">Remove</button>
-    </div>`).join('');
+  const counts = {};
+  items.forEach(it => { const s = it.status || 'applied'; counts[s] = (counts[s] || 0) + 1; });
+  const summary = `<div class="app-summary">
+    <span class="app-stat"><b>${items.length}</b> total</span>
+    ${APP_STATUSES.filter(s => counts[s]).map(s => `<span class="app-stat st-${_slug(s)}">${counts[s]} ${s}</span>`).join('')}
+  </div>`;
+
+  const rows = items.map(it => {
+    const st = it.status || 'applied';
+    const esc = it.url.replace(/'/g, "\\'");
+    const plat = it.platform ? `<span class="platform-tag platform-${it.platform}">${platformLabel(it)}</span>` : '';
+    const role = it.role ? `<span class="role-tag">${it.role}</span>` : '';
+    const opts = APP_STATUSES.map(s => `<option value="${s}" ${s === st ? 'selected' : ''}>${s}</option>`).join('');
+    return `
+      <div class="applied-row">
+        <div class="applied-meta">
+          <span class="applied-title">${plat}${role}<a href="${it.url}" target="_blank" rel="noopener">${it.title || 'Listing'} ↗</a></span>
+          <span class="listing-sub">${it.company || ''}${it.stipend ? ` · ${it.stipend}` : ''} · applied ${(it.applied_at || '').slice(0, 10)}</span>
+        </div>
+        <div class="applied-actions">
+          <select class="status-select st-${_slug(st)}" onchange="setAppliedStatus('${esc}', this.value)">${opts}</select>
+          <button class="btn-sm btn-skip" onclick="removeApplied('${esc}')">Remove</button>
+        </div>
+      </div>`;
+  }).join('');
+  list.innerHTML = summary + rows;
+}
+
+async function setAppliedStatus(url, status) {
+  if (demoMode) {
+    const it = DEMO_APPLIED.find(x => x.url === url);
+    if (it) it.status = status;
+    renderApplied(DEMO_APPLIED);
+    return;
+  }
+  await fetch('/api/applied/status', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url, status }),
+  });
+  renderApplied(await refreshAppliedCount());
 }
 
 async function removeApplied(url) {
+  if (demoMode) {
+    const i = DEMO_APPLIED.findIndex(x => x.url === url);
+    if (i >= 0) DEMO_APPLIED.splice(i, 1);
+    renderApplied(await refreshAppliedCount());
+    return;
+  }
   await fetch('/api/applied/remove', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ url }),
@@ -122,7 +170,8 @@ async function removeApplied(url) {
 }
 
 async function clearApplied() {
-  if (!confirm('Clear the entire applied history? Listings will become applyable again.')) return;
+  if (!confirm('Clear the entire applications list? Listings will become applyable again.')) return;
+  if (demoMode) { DEMO_APPLIED.length = 0; renderApplied(await refreshAppliedCount()); return; }
   await fetch('/api/applied', { method: 'DELETE' });
   renderApplied(await refreshAppliedCount());
 }
@@ -417,10 +466,12 @@ const DEMO_RESUMES = {
     keywords: ["figma", "ui design", "ux design", "prototyping", "design systems"] },
 };
 function loadDemo() {
+  demoMode = true;
   currentJobId = 'demo';
   activeFilter = 'all';
   renderResumeCards(DEMO_RESUMES);
   renderListings(DEMO_LISTINGS);
+  refreshAppliedCount();
   document.getElementById('results-panel').scrollIntoView({ behavior: 'smooth' });
 }
 

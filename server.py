@@ -55,6 +55,9 @@ def _mark_applied(listing: dict) -> None:
         "company": listing.get("company", ""),
         "role": listing.get("matched_role", ""),
         "stipend": listing.get("stipend", ""),
+        "platform": listing.get("platform", ""),
+        "logo": listing.get("logo", ""),
+        "status": "applied",
         "applied_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
     }
     store.save_applied(_applied)
@@ -86,6 +89,10 @@ class BatchSubmit(BaseModel):
 
 class AppliedRemove(BaseModel):
     url: str
+
+class AppliedStatus(BaseModel):
+    url: str
+    status: str
 
 
 # ── Routes: UI ────────────────────────────────────────────────────────────────
@@ -165,6 +172,15 @@ async def remove_applied(body: AppliedRemove):
     """Forget one applied listing (it can then be applied to again)."""
     if body.url in _applied:
         del _applied[body.url]
+        store.save_applied(_applied)
+    return {"ok": True}
+
+
+@app.post("/api/applied/status")
+async def set_applied_status(body: AppliedStatus):
+    """Update the tracked status of an application."""
+    if body.url in _applied:
+        _applied[body.url]["status"] = body.status
         store.save_applied(_applied)
     return {"ok": True}
 

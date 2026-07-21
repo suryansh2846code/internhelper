@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/style.css?v=30" />
+  <link rel="stylesheet" href="/static/style.css?v=31" />
 </head>
 <body>
   <div class="app">
@@ -20,7 +20,7 @@
         <a href="#resume-panel" class="nav-item" data-nav>Résumés</a>
         <a href="#search-panel" class="nav-item" data-nav>Search</a>
         <a href="#results-panel" class="nav-item" data-nav>Results</a>
-        <button class="nav-item" id="applied-btn" onclick="toggleApplied()">Applied</button>
+        <button class="nav-item" id="applied-btn" onclick="toggleApplied()">Applications</button>
         <button class="nav-item" onclick="loadDemo()">🎲 Demo cards</button>
       </nav>
 
@@ -43,7 +43,7 @@
       <!-- APPLIED HISTORY -->
       <section id="applied-panel" class="card hidden">
         <div class="section-head">
-          <h2>Applied history</h2>
+          <h2>My Applications</h2>
           <button class="btn-sm btn-skip" onclick="clearApplied()">Clear all</button>
         </div>
         <div id="applied-list"></div>
@@ -116,6 +116,6 @@
     </div>
   </div>
 
-  <script src="/static/app.js?v=30"></script>
+  <script src="/static/app.js?v=31"></script>
 </body>
 </html>

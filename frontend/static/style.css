@@ -403,10 +403,33 @@ input:focus { border-color: var(--accent); }
   padding: 14px 16px; border: 1px solid var(--border);
   border-radius: 12px; margin-bottom: 8px; background: var(--surface2);
 }
-.applied-meta { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-.applied-title { font-weight: 600; display: flex; align-items: center; gap: 8px; }
-.applied-title a { color: var(--accent); text-decoration: none; }
-.applied-title a:hover { text-decoration: underline; }
+.applied-meta { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.applied-title { font-weight: 600; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.applied-title a { color: var(--text); text-decoration: none; }
+.applied-title a:hover { color: var(--accent); }
+.applied-actions { display: flex; align-items: center; gap: 10px; flex: none; }
+
+/* Application status summary chips */
+.app-summary { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+.app-stat {
+  font-size: 12px; font-weight: 700; padding: 6px 12px; border-radius: 99px;
+  background: var(--surface2); color: var(--muted); text-transform: capitalize;
+}
+.app-stat b { color: var(--text); }
+
+/* Status colours (shared by summary chips and the select) */
+.st-applied      { background: var(--surface2); color: #c7c7d1; }
+.st-under-review { background: rgba(255,210,63,.16); color: var(--yellow); }
+.st-interview    { background: rgba(59,157,255,.16); color: var(--blue); }
+.st-offer        { background: rgba(52,211,153,.18); color: var(--green); }
+.st-rejected     { background: rgba(255,92,92,.16); color: var(--red); }
+
+.status-select {
+  border: none; border-radius: 99px; padding: 7px 12px;
+  font-size: 12px; font-weight: 700; font-family: inherit;
+  text-transform: capitalize; cursor: pointer; outline: none;
+}
+.status-select option { background: var(--surface); color: var(--text); }
 
 /* ── Status bar ─────────────────────────────────────────────────────────── */
 .statusbar {
