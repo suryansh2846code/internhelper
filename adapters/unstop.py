@@ -77,6 +77,45 @@ class UnstopAdapter(PlatformAdapter):
         # is deferred to apply(), which bails if it hits an open-ended question.
         return {"jd": "", "questions": [], "profile_incomplete": False}
 
+    def sync_applications(self, context: BrowserContext) -> list[dict]:
+        # Unstop exposes registered opportunities via an authed JSON API.
+        page = context.new_page()
+        try:
+            page.goto("https://unstop.com/user/registrations", wait_until="domcontentloaded", timeout=40_000)
+            page.wait_for_timeout(3500)
+            token = next((c["value"] for c in context.cookies()
+                          if c["name"] == "access_token" and "unstop" in c.get("domain", "")), None)
+            if not token:
+                print("[unstop] no access token — can't sync")
+                return []
+
+            out: list[dict] = []
+            for page_no in range(1, 7):
+                api = ("https://unstop.com/api/user/registered-opportunities"
+                       f"?page={page_no}&per_page=30&filterName=type,status&filterValue=all,all")
+                r = context.request.get(api, headers={"Authorization": f"Bearer {token}"})
+                if not r.ok:
+                    break
+                items = ((r.json() or {}).get("data") or {}).get("data") or []
+                for it in items:
+                    url = it.get("seo_url") or f"https://unstop.com/{it.get('public_url', '')}"
+                    if "/internships/" not in url:  # skip hackathons/competitions/quizzes
+                        continue
+                    out.append({
+                        "url": url,
+                        "title": (it.get("title") or "").strip(),
+                        "company": "",
+                        "status": _reg_status(it),
+                    })
+                if len(items) < 30:
+                    break
+            return out
+        except Exception as e:
+            print(f"[unstop] sync error: {e}")
+            return []
+        finally:
+            page.close()
+
     def apply(self, context: BrowserContext, listing: dict, answers: dict) -> tuple[bool, str]:
         opp_id = listing.get("id") or _id_from_url(listing.get("url", ""))
         if not opp_id:
@@ -139,6 +178,20 @@ class UnstopAdapter(PlatformAdapter):
 
 
 # ── helpers ────────────────────────────────────────────────────────────────────
+
+def _reg_status(item: dict) -> str:
+    """Map an Unstop registered-opportunity to our status set (best effort)."""
+    if item.get("userRejectedRoundStatus"):
+        return "rejected"
+    s = (item.get("status") or "").lower()
+    if any(k in s for k in ("select", "winner", "offer", "hired")):
+        return "offer"
+    if any(k in s for k in ("shortlist", "interview")):
+        return "interview"
+    if "review" in s:
+        return "under review"
+    return "applied"
+
 
 def _stipend(job_detail: dict) -> str:
     if not job_detail.get("show_salary"):
