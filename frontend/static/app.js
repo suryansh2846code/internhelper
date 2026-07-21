@@ -96,7 +96,10 @@ function buildResumeCard(r) {
   } else {
     const chips = (r.keywords || []).map((kw, i) =>
       `<span class="chip">${kw}<button class="chip-remove" onclick="removeKeyword(${r.id},${i})">×</button></span>`).join('');
-    kwHtml = `<div class="keyword-area">${chips}
+    const errHint = r.keyword_status === 'error'
+      ? `<span class="kw-error" title="Check the server LLM key/config">⚠ Auto-extract failed — add keywords manually or re-upload</span>`
+      : '';
+    kwHtml = `<div class="keyword-area">${errHint}${chips}
       <input class="chip-input" placeholder="+ add" onkeydown="addKeyword(event,${r.id})" /></div>`;
   }
   card.innerHTML = `

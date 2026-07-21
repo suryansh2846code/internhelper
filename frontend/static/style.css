@@ -310,6 +310,7 @@ input:focus { border-color: var(--accent); }
 .chip-input::placeholder { color: rgba(0,0,0,.5); }
 .chip-input:focus { border-color: #000; }
 .kw-extracting { color: rgba(0,0,0,.65); font-size: 12px; font-weight: 600; }
+.kw-error { display: block; width: 100%; color: #b91c1c; font-size: 12px; font-weight: 600; margin-bottom: 6px; }
 
 /* ── Results ────────────────────────────────────────────────────────────── */
 .results-header {
