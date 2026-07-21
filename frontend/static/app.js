@@ -176,6 +176,24 @@ async function clearApplied() {
   renderApplied(await refreshAppliedCount());
 }
 
+async function syncApplications() {
+  const btn = document.getElementById('sync-btn');
+  if (demoMode) { alert('Sync pulls live statuses from the platforms — try it outside demo mode.'); return; }
+  btn.disabled = true;
+  btn.textContent = '⏳ Syncing… (a browser window opens)';
+  try { await fetch('/api/applied/sync', { method: 'POST' }); } catch {}
+  const t = setInterval(async () => {
+    let s;
+    try { s = await (await fetch('/api/applied/sync-status')).json(); } catch { return; }
+    if (s.running) return;
+    clearInterval(t);
+    btn.disabled = false;
+    btn.textContent = '🔄 Sync status';
+    if (s.error) { btn.textContent = '⚠ Sync failed — re-login?'; }
+    renderApplied(await refreshAppliedCount());
+  }, 1500);
+}
+
 refreshAppliedCount();
 
 // Reflect whether a session file already exists on page load

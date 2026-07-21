@@ -34,3 +34,8 @@ class PlatformAdapter(ABC):
     @abstractmethod
     def apply(self, context: BrowserContext, listing: dict, answers: dict) -> tuple[bool, str]:
         """Submit the application. Returns (success, message)."""
+
+    def sync_applications(self, context: BrowserContext) -> list[dict]:
+        """Read the platform's 'my applications' page and return
+        [{url, title, company, status}] for status syncing. Default: unsupported."""
+        return []

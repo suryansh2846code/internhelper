@@ -189,6 +189,7 @@ h1, h2, h3, .brand { font-family: 'Space Grotesk', system-ui, sans-serif; }
   gap: 12px; margin-bottom: 8px;
 }
 .section-head h2, .card h2 { font-size: 17px; font-weight: 600; }
+.section-actions { display: flex; gap: 8px; align-items: center; }
 .step-head { display: flex; align-items: center; gap: 10px; }
 .step-pill {
   background: var(--yellow); color: #000;

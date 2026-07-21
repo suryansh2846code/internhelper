@@ -44,6 +44,13 @@ _resumes: dict[str, dict] = store.load_resumes()
 # url -> { title, company, applied_at } — listings already applied to
 _applied: dict[str, dict] = store.load_applied()
 
+# Status-sync state
+_sync: dict = {"running": False, "added": 0, "updated": 0, "error": None}
+
+
+def _norm_url(u: str) -> str:
+    return (u or "").split("?")[0].rstrip("/")
+
 # job_id -> { status, listings, error }
 _jobs: dict[str, dict] = {}
 
@@ -183,6 +190,21 @@ async def set_applied_status(body: AppliedStatus):
         _applied[body.url]["status"] = body.status
         store.save_applied(_applied)
     return {"ok": True}
+
+
+@app.post("/api/applied/sync")
+async def sync_applications(background_tasks: BackgroundTasks):
+    """Pull live application statuses from the platforms and merge them in."""
+    if _sync["running"]:
+        return {"status": "running"}
+    _sync.update(running=True, added=0, updated=0, error=None)
+    background_tasks.add_task(_run_sync)
+    return {"status": "running"}
+
+
+@app.get("/api/applied/sync-status")
+async def sync_status():
+    return _sync
 
 
 @app.delete("/api/applied")
@@ -355,6 +377,51 @@ def _relogin_task():
     except Exception as e:
         _auth["status"] = "error"
         _auth["error"] = str(e)
+
+
+def _run_sync():
+    """Read each platform's applications page and merge statuses into _applied."""
+    try:
+        from adapters import list_platforms, get_adapter
+
+        def work(context):
+            found = []
+            for p in list_platforms():
+                adapter = get_adapter(p["name"])
+                try:
+                    for a in adapter.sync_applications(context):
+                        found.append({**a, "platform": p["name"]})
+                except Exception as e:
+                    print(f"[sync] {p['name']} error: {e}")
+            return found
+
+        synced = _browser.run(work)
+
+        by_norm = {_norm_url(u): u for u in _applied}
+        added = updated = 0
+        for a in synced:
+            key = _norm_url(a.get("url", ""))
+            if not key:
+                continue
+            if key in by_norm:
+                url = by_norm[key]
+                new_status = a.get("status")
+                if new_status and new_status != _applied[url].get("status"):
+                    _applied[url]["status"] = new_status
+                    updated += 1
+            else:
+                _applied[a["url"]] = {
+                    "title": a.get("title", ""), "company": a.get("company", ""),
+                    "role": "", "stipend": "", "platform": a.get("platform", ""),
+                    "logo": "", "status": a.get("status", "applied"),
+                    "applied_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                }
+                added += 1
+
+        store.save_applied(_applied)
+        _sync.update(running=False, added=added, updated=updated, error=None)
+    except Exception as e:
+        _sync.update(running=False, error=str(e))
 
 
 def _platform_login_task(login_url: str):
