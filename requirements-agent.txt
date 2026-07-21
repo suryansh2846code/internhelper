@@ -1,0 +1,8 @@
+# Local agent runtime — the "hands" that run on the user's machine.
+# After installing, fetch the browser once:  python -m playwright install chromium
+playwright>=1.44
+requests>=2.31
+fpdf2>=2.7           # Unstop requires a PDF résumé (converted locally)
+
+# macOS menu-bar app (agent/app.py). Windows/Linux use the terminal agent for now.
+rumps>=0.4 ; sys_platform == "darwin"

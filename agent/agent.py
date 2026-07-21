@@ -161,7 +161,46 @@ def handle_sync(worker, client, payload: dict) -> dict:
 HANDLERS = {"search": handle_search, "apply": handle_apply, "sync": handle_sync}
 
 
-# ── Main loop ───────────────────────────────────────────────────────────────
+# ── Job loop (shared by the terminal agent and the menu-bar app) ─────────────
+
+def _interruptible_sleep(secs: float, stop_event) -> None:
+    if stop_event is None:
+        time.sleep(secs)
+        return
+    end = time.time() + secs
+    while time.time() < end and not stop_event.is_set():
+        time.sleep(0.2)
+
+
+def run_job_loop(client, worker, stop_event=None, log=print) -> None:
+    """Claim → run → report, until stop_event is set (or forever)."""
+    log("[agent] waiting for jobs…")
+    while stop_event is None or not stop_event.is_set():
+        try:
+            job = client.claim_job()
+        except Exception as e:
+            log(f"[agent] claim error: {e}")
+            _interruptible_sleep(POLL_INTERVAL, stop_event)
+            continue
+        if not job:
+            _interruptible_sleep(POLL_INTERVAL, stop_event)
+            continue
+
+        log(f"[agent] job {job['id']} ({job['kind']}) — running")
+        handler = HANDLERS.get(job["kind"])
+        try:
+            if not handler:
+                client.report(job["id"], "failed", error=f"unknown job kind {job['kind']}")
+                continue
+            result = handler(worker, client, job.get("payload") or {})
+            client.report(job["id"], "done", result=result)
+            log(f"[agent] job {job['id']} done")
+        except Exception as e:
+            traceback.print_exc()
+            client.report(job["id"], "failed", error=str(e))
+
+
+# ── Terminal entrypoint ──────────────────────────────────────────────────────
 
 def main():
     server = os.getenv("SERVER_URL", "http://localhost:8000")
@@ -186,33 +225,8 @@ def main():
 
     # Jobs run against that same persistent profile.
     worker = BrowserWorker(context_factory=open_profile)
-    print("[agent] waiting for jobs…")
-
     try:
-        while True:
-            try:
-                job = client.claim_job()
-            except Exception as e:
-                print(f"[agent] claim error: {e}")
-                time.sleep(POLL_INTERVAL)
-                continue
-
-            if not job:
-                time.sleep(POLL_INTERVAL)
-                continue
-
-            print(f"[agent] job {job['id']} ({job['kind']}) — running")
-            handler = HANDLERS.get(job["kind"])
-            try:
-                if not handler:
-                    client.report(job["id"], "failed", error=f"unknown job kind {job['kind']}")
-                    continue
-                result = handler(worker, client, job.get("payload") or {})
-                client.report(job["id"], "done", result=result)
-                print(f"[agent] job {job['id']} done")
-            except Exception as e:
-                traceback.print_exc()
-                client.report(job["id"], "failed", error=str(e))
+        run_job_loop(client, worker)
     except KeyboardInterrupt:
         print("\n[agent] shutting down")
     finally:

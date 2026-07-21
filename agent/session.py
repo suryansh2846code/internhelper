@@ -53,10 +53,28 @@ def _unstop_logged_in(context) -> bool:
 
 
 _CHECKS = {"internshala": _internshala_logged_in, "unstop": _unstop_logged_in}
-_LOGIN_URLS = {
+LOGIN_URLS = {
     "internshala": f"{config.INTERNSHALA_BASE_URL}/login/user",
     "unstop": "https://unstop.com/login",
 }
+_LOGIN_URLS = LOGIN_URLS  # backward-compat alias
+
+
+def goto_login(context, platform: str) -> bool:
+    """Navigate the browser to a platform's login page (non-blocking; for the GUI).
+
+    The persistent profile means whatever the user logs into sticks for later
+    jobs. Returns whether the platform now looks logged in."""
+    url = LOGIN_URLS.get(platform)
+    if not url:
+        return False
+    page = context.new_page()
+    try:
+        page.goto(url, wait_until="domcontentloaded", timeout=30_000)
+    except Exception:
+        pass
+    check = _CHECKS.get(platform)
+    return bool(check and check(context))
 
 
 def ensure_platform_login(playwright, platforms=None):
