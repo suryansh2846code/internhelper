@@ -23,9 +23,12 @@ def pair_token(request: Request, user: User = Depends(current_user)):
     """Web app: create a token to connect a new computer."""
     token = create_pairing_token(user.id)
     base = str(request.base_url).rstrip("/")
+    # Behind Railway's TLS proxy base_url can be http://; the public site is https.
+    if base.startswith("http://"):
+        base = "https://" + base[len("http://"):]
     # Terminal fallback (works with the cloned repo today). The packaged desktop
-    # app will consume the same token via a deep link instead.
-    command = f"SERVER_URL={base} AGENT_PAIR_TOKEN={token} python -m agent.agent"
+    # app will consume the same token via a deep link instead. python3 on macOS.
+    command = f"SERVER_URL={base} AGENT_PAIR_TOKEN={token} python3 -m agent.agent"
     return PairTokenOut(token=token, expires_in_min=settings.pairing_token_ttl_min, command=command)
 
 
