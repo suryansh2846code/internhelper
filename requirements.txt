@@ -11,3 +11,9 @@ fastapi>=0.111.0
 uvicorn>=0.30.0
 python-multipart>=0.0.9
 fpdf2
+sqlalchemy>=2.0
+psycopg2-binary>=2.9
+pyjwt>=2.8
+pydantic-settings>=2.0
+email-validator>=2.0
+bcrypt>=4.1
