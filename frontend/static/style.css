@@ -311,6 +311,9 @@ input:focus { border-color: var(--accent); }
 .chip-input:focus { border-color: #000; }
 .kw-extracting { color: rgba(0,0,0,.65); font-size: 12px; font-weight: 600; }
 .kw-error { display: block; width: 100%; color: #b91c1c; font-size: 12px; font-weight: 600; margin-bottom: 6px; }
+.lock-note { color: var(--muted); font-size: 13px; font-weight: 600; margin: 4px 0 10px; }
+.resume-section.locked .btn-delete { opacity: .4; cursor: not-allowed; pointer-events: none; }
+.resume-section.locked .btn-upload { opacity: .5; cursor: not-allowed; pointer-events: none; }
 
 /* ── Results ────────────────────────────────────────────────────────────── */
 .results-header {

@@ -6,6 +6,20 @@ let activeFilter = 'all';
 let selected = new Set();
 let demoMode = false;
 let currentListings = [];   // latest search results (held client-side)
+let resumesLocked = false;  // true while a search/apply job is running
+
+// Lock/unlock résumé add + delete while the agent is scraping/applying, so the
+// résumé set can't change mid-run. The server enforces this too (409).
+function setResumesLocked(locked) {
+  resumesLocked = locked;
+  const section = document.getElementById('resume-section') || document.querySelector('.resume-section');
+  const fileInput = document.getElementById('resume-file');
+  if (fileInput) fileInput.disabled = locked;
+  if (section) section.classList.toggle('locked', locked);
+  document.querySelectorAll('#resume-cards .btn-delete').forEach(b => { b.disabled = locked; });
+  const note = document.getElementById('resume-lock-note');
+  if (note) note.style.display = locked ? '' : 'none';
+}
 
 // ── Job polling ──────────────────────────────────────────────────────────────
 function pollJob(jobId, onTick) {
@@ -47,13 +61,15 @@ function selectedPlatforms() {
 document.getElementById('resume-file').addEventListener('change', async (e) => {
   const file = e.target.files[0];
   if (!file) return;
+  if (resumesLocked) { setUploadStatus('Locked while a search/apply is running.', 'error'); e.target.value = ''; return; }
   const role = document.getElementById('role-input').value.trim().toLowerCase();
   if (!role) { setUploadStatus('Enter a role label first', 'error'); e.target.value = ''; return; }
   setUploadStatus('Uploading…', 'info');
   const fd = new FormData();
   fd.append('role', role); fd.append('file', file);
   try {
-    await apiFetch('/api/resumes', { method: 'POST', body: fd });
+    const res = await apiFetch('/api/resumes', { method: 'POST', body: fd });
+    if (res.status === 409) { setUploadStatus('🔒 Locked while a search/apply is running.', 'error'); e.target.value = ''; return; }
     setUploadStatus(`✓ ${file.name} uploaded — extracting keywords…`, 'ok');
     document.getElementById('role-input').value = ''; e.target.value = '';
     loadResumes();
@@ -84,6 +100,7 @@ function renderResumeCards(list) {
   const c = document.getElementById('resume-cards');
   c.innerHTML = '';
   list.forEach(r => c.appendChild(buildResumeCard(r)));
+  setResumesLocked(resumesLocked);   // keep delete buttons in sync after re-render
 }
 
 function buildResumeCard(r) {
@@ -132,7 +149,9 @@ async function addKeyword(e, id) {
   _patchKeywords(id, [...((r && r.keywords) || []), kw]);
 }
 async function deleteResume(id) {
-  await apiFetch(`/api/resumes/${id}`, { method: 'DELETE' });
+  if (resumesLocked) { setUploadStatus('🔒 Locked while a search/apply is running.', 'error'); return; }
+  const res = await apiFetch(`/api/resumes/${id}`, { method: 'DELETE' });
+  if (res && res.status === 409) { setUploadStatus('🔒 Locked while a search/apply is running.', 'error'); return; }
   loadResumes();
 }
 
@@ -143,6 +162,7 @@ async function startSearch() {
   const platforms = selectedPlatforms();
   if (!platforms.length) { statusEl.textContent = 'Select at least one platform.'; return; }
   btn.disabled = true;
+  setResumesLocked(true);
   statusEl.innerHTML = '<span class="spinner"></span>Queuing search…';
   demoMode = false;
 
@@ -154,7 +174,7 @@ async function startSearch() {
   };
   let job;
   try { job = await (await apiFetch('/api/search', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })).json(); }
-  catch { statusEl.textContent = 'Error queuing search.'; btn.disabled = false; return; }
+  catch { statusEl.textContent = 'Error queuing search.'; btn.disabled = false; setResumesLocked(false); return; }
 
   const done = await pollJob(job.id, j => {
     statusEl.innerHTML = j.status === 'queued'
@@ -162,6 +182,7 @@ async function startSearch() {
       : '<span class="spinner"></span>Agent is searching…';
   });
   btn.disabled = false;
+  setResumesLocked(false);
   if (done.status === 'failed') { statusEl.textContent = `Search failed: ${done.error}`; return; }
   statusEl.textContent = '';
   currentListings = done.result.listings || [];
@@ -255,7 +276,9 @@ async function _runApply(index) {
 
 async function directApply(index) {
   if (!confirm('Auto-apply now? Your local agent submits this on the platform using your session.')) return;
-  await _runApply(index);
+  setResumesLocked(true);
+  try { await _runApply(index); }
+  finally { setResumesLocked(false); }
   refreshAppliedCount();
 }
 
@@ -263,12 +286,15 @@ async function applyBatch(indices) {
   if (!indices.length) return;
   if (!confirm(`Auto-apply to ${indices.length} internship${indices.length !== 1 ? 's' : ''}? Each runs on your agent, one at a time.`)) return;
   document.querySelectorAll('#bulk-bar button').forEach(b => b.disabled = true);
+  setResumesLocked(true);
   const prog = document.getElementById('bulk-progress');
   let applied = 0, failed = 0;
-  for (let n = 0; n < indices.length; n++) {
-    if (prog) prog.textContent = `Applying ${n + 1}/${indices.length} · ✓${applied}${failed ? ` ✗${failed}` : ''}`;
-    (await _runApply(indices[n])) ? applied++ : failed++;
-  }
+  try {
+    for (let n = 0; n < indices.length; n++) {
+      if (prog) prog.textContent = `Applying ${n + 1}/${indices.length} · ✓${applied}${failed ? ` ✗${failed}` : ''}`;
+      (await _runApply(indices[n])) ? applied++ : failed++;
+    }
+  } finally { setResumesLocked(false); }
   if (prog) prog.textContent = `Done · ✓${applied} applied${failed ? ` · ✗${failed} failed` : ''}`;
   selected.clear();
   refreshAppliedCount();

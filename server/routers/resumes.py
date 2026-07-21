@@ -11,11 +11,27 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from server.db import get_db, SessionLocal
-from server.models import User, Resume
+from server.models import User, Resume, Job
 from server.auth import current_user
 from server.schemas import ResumeOut, KeywordsUpdate
 
 router = APIRouter(prefix="/api/resumes", tags=["resumes"])
+
+
+def _guard_no_active_job(db: Session, user_id: int):
+    """Refuse résumé add/delete while a search/apply is queued or running — the
+    agent may be scraping/applying with the current set."""
+    active = db.scalar(
+        select(Job.id).where(
+            Job.user_id == user_id,
+            Job.kind.in_(["search", "apply"]),
+            Job.status.in_(["queued", "running"]),
+        ).limit(1)
+    )
+    if active:
+        raise HTTPException(
+            409, "Résumés are locked while a search or apply is running. "
+                 "Wait for it to finish, then try again.")
 
 
 def _extract_keywords_task(resume_id: int, ext: str):
@@ -64,6 +80,7 @@ def list_resumes(user: User = Depends(current_user), db: Session = Depends(get_d
 @router.post("", response_model=ResumeOut)
 async def upload_resume(background: BackgroundTasks, role: str = Form(...), file: UploadFile = File(...),
                         user: User = Depends(current_user), db: Session = Depends(get_db)):
+    _guard_no_active_job(db, user.id)
     data = await file.read()
     ext = os.path.splitext(file.filename or "")[1]
 
@@ -106,6 +123,7 @@ def download_resume(resume_id: int, user: User = Depends(current_user), db: Sess
 
 @router.delete("/{resume_id}")
 def delete_resume(resume_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    _guard_no_active_job(db, user.id)
     r = db.get(Resume, resume_id)
     if r and r.user_id == user.id:
         db.delete(r)

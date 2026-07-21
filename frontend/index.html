@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/style.css?v=35" />
+  <link rel="stylesheet" href="/static/style.css?v=36" />
 </head>
 <body>
   <!-- AUTH GATE -->
@@ -65,11 +65,12 @@
       </section>
 
       <!-- STEP 1: RESUMES -->
-      <section class="card" id="resume-panel">
+      <section class="card resume-section" id="resume-panel">
         <div class="section-head">
           <div class="step-head"><span class="step-pill">1</span><h2>Upload your résumés</h2></div>
         </div>
         <p class="step-hint">One résumé per role — AI suggests search keywords from each.</p>
+        <p id="resume-lock-note" class="lock-note" style="display:none">🔒 Locked while a search or apply is running — changes are paused until it finishes.</p>
         <div class="upload-row">
           <input type="text" id="role-input" placeholder="Role label  ·  e.g. frontend, backend, fullstack" />
           <label class="btn-upload">
@@ -130,6 +131,6 @@
     </div>
   </div>
 
-  <script src="/static/auth.js?v=35"></script>
+  <script src="/static/auth.js?v=36"></script>
 </body>
 </html>
