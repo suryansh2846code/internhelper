@@ -42,12 +42,21 @@ def _save_identity(data: dict) -> None:
         json.dump(data, f)
 
 
-def _connect(server: str) -> ServerClient:
-    """Resolve auth: stored device key → pairing token → email/password."""
+def _connect(server: str | None) -> ServerClient:
+    """Resolve auth: stored device key → pairing token → email/password.
+
+    If SERVER_URL isn't set (or is the localhost default) but a previous pairing
+    exists, reuse that saved server so `python -m agent.agent` just reconnects."""
     ident = _load_identity()
-    key = ident.get("agent_key")
-    if key and ident.get("server") == server:
-        print("[agent] using saved device key")
+    key, saved_server = ident.get("agent_key"), ident.get("server")
+
+    default_or_empty = server in (None, "", "http://localhost:8000")
+    if key and saved_server and default_or_empty:
+        server = saved_server
+    server = server or "http://localhost:8000"
+
+    if key and saved_server == server:
+        print(f"[agent] using saved device key for {server}")
         return ServerClient.with_key(server, key)
 
     pair_token = os.getenv("AGENT_PAIR_TOKEN")
@@ -226,14 +235,14 @@ def _terminal_login(worker):
 
 
 def main():
-    server = os.getenv("SERVER_URL", "http://localhost:8000")
+    server = os.getenv("SERVER_URL")   # may be None → _connect reuses saved pairing
 
     from browser_session import BrowserWorker
     from agent.session import open_profile
 
     client = _connect(server)
     _start_heartbeat(client)
-    print(f"[agent] connected to {server}")
+    print(f"[agent] connected to {client.base}")
 
     # Jobs AND login share one persistent profile / one browser launch.
     worker = BrowserWorker(context_factory=open_profile)
