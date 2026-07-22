@@ -13,6 +13,33 @@ from scraper.internshala import (
 
 console = Console()
 
+# Phrases that mean "you can't apply to this" — surfaced verbatim-ish to the user
+# instead of a vague failure. Shared by the Internshala + Unstop apply flows.
+_INELIGIBLE = (
+    ("not eligible", "You don't meet this listing's eligibility criteria."),
+    ("eligibility criteria", "You don't meet this listing's eligibility criteria."),
+    ("not allowed to apply", "You're not allowed to apply to this listing."),
+    ("cannot apply", "You can't apply to this listing."),
+    ("no longer accepting", "This listing is no longer accepting applications."),
+    ("applications are closed", "Applications for this listing are closed."),
+    ("application deadline has passed", "The application deadline has passed."),
+    ("registrations are closed", "Registrations for this listing are closed."),
+    ("this opportunity has ended", "This opportunity has ended."),
+    ("already applied", "You've already applied to this listing."),
+)
+
+
+def ineligibility_reason(page) -> str | None:
+    """Return a clear message if the page says the user can't apply, else None."""
+    try:
+        body = (page.inner_text("body") or "").lower()
+    except Exception:
+        return None
+    for key, msg in _INELIGIBLE:
+        if key in body:
+            return msg
+    return None
+
 
 def run_apply(context: BrowserContext, listing: dict, answers: dict) -> dict:
     """Single-navigation apply used by the agent.
@@ -45,6 +72,9 @@ def run_apply(context: BrowserContext, listing: dict, answers: dict) -> dict:
 
         proceed_to_application_form(page)
         if not on_application_form(page):
+            elig = ineligibility_reason(page)
+            if elig:
+                return {"ok": False, "message": elig}
             landing = (page.url or "").lower()
             reason = ("Complete your Internshala profile" if ("profile" in landing or "resume" in landing)
                       else "Internshala is rate-limiting — try again shortly (or fewer listings)")

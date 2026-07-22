@@ -25,6 +25,12 @@ POLL_INTERVAL = 4          # seconds between polls when idle
 APPLY_DELAY = 5            # pause between bulk applies (throttle safety)
 HEARTBEAT_SECS = 15        # how often to tell the server we're online
 
+# Hard time limits per operation — if the browser work doesn't return in time we
+# stop it and report a clear error instead of the web app hanging forever.
+SEARCH_TIMEOUT = 480       # whole search (all roles/platforms)
+APPLY_TIMEOUT = 180        # one application
+SYNC_TIMEOUT = 180         # one status sync
+
 # Durable device key from pairing lives here so re-runs skip pairing.
 IDENTITY_PATH = os.path.expanduser("~/.internhelper/agent.json")
 
@@ -177,7 +183,11 @@ def handle_search(worker, client, payload: dict) -> dict:
                     listings.append({**r, **base, **info, "status": "auto"})
         return listings
 
-    return {"listings": worker.run(work)}
+    try:
+        return {"listings": worker.run(work, timeout=SEARCH_TIMEOUT)}
+    except TimeoutError:
+        raise RuntimeError("Search timed out — the site may be slow or rate-limiting. "
+                           "Try again, or lower 'Max listings per role'.")
 
 
 def handle_apply(worker, client, payload: dict) -> dict:
@@ -208,7 +218,11 @@ def handle_apply(worker, client, payload: dict) -> dict:
     adapter = get_adapter(listing.get("platform"))
     answers = payload.get("answers") or listing.get("final_answers") or {}
 
-    result = worker.run(lambda ctx: adapter.try_apply(ctx, listing, answers))
+    try:
+        result = worker.run(lambda ctx: adapter.try_apply(ctx, listing, answers), timeout=APPLY_TIMEOUT)
+    except TimeoutError:
+        return {"ok": False, "message": "This took too long and was stopped — the platform may be "
+                                        "slow or blocking. Try again in a bit."}
     ok = result.get("ok")
     if ok:
         result["applications"] = [{
@@ -235,7 +249,10 @@ def handle_sync(worker, client, payload: dict) -> dict:
                 print(f"[agent] sync {p['name']} error: {e}")
         return found
 
-    return {"applications": worker.run(work)}
+    try:
+        return {"applications": worker.run(work, timeout=SYNC_TIMEOUT)}
+    except TimeoutError:
+        raise RuntimeError("Status sync timed out — the platform may be slow. Try again.")
 
 
 HANDLERS = {"search": handle_search, "apply": handle_apply, "sync": handle_sync}

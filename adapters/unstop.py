@@ -142,6 +142,11 @@ class UnstopAdapter(PlatformAdapter):
                 return {"ok": False, "not_logged_in": True,
                         "message": "Not logged into Unstop — reconnect and retry."}
 
+            from apply.form_filler import ineligibility_reason
+            elig = ineligibility_reason(page)
+            if elig:
+                return {"ok": False, "message": elig}
+
             # Unstop only accepts PDF résumés — convert if needed.
             resume = ensure_pdf(listing.get("resume_path"))
 
