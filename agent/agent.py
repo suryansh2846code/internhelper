@@ -110,12 +110,12 @@ def handle_search(worker, client, payload: dict) -> dict:
                     if not adapter.supports_auto_apply:
                         listings.append({**r, **base, "status": "link", "reason": f"Apply on {adapter.label}"})
                         continue
-                    _t.sleep(1.5)
+                    _t.sleep(2.5)   # pace Apply clicks so Internshala doesn't rate-limit us
                     details = adapter.classify(context, r["url"])
                     q, pi = details.get("questions", []), details.get("profile_incomplete", False)
                     status = "link" if (pi or q) else "auto"
-                    reason = (f"Complete your {adapter.label} profile" if pi
-                              else (f"{len(q)} custom question(s)" if q else ""))
+                    reason = (details.get("block_reason") or f"Complete your {adapter.label} profile") if pi \
+                        else (f"{len(q)} custom question(s)" if q else "")
                     listings.append({**r, **base, "jd": details.get("jd", ""),
                                      "questions": q, "reason": reason, "status": status})
         return listings

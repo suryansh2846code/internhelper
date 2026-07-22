@@ -205,10 +205,19 @@ def get_listing_details(context: BrowserContext, url: str) -> dict:
                         continue
                     questions.append(_question_text_for(page, ta))
             else:
-                # Never reached the form → profile is genuinely incomplete.
-                print(f"[scraper] Could not reach application form: {page.url}")
+                # Didn't reach the form. Distinguish a genuine profile/résumé gap
+                # from Internshala rate-limiting us (many Apply clicks in a row),
+                # which otherwise looks identical.
+                landing = page.url or ""
+                print(f"[scraper] Could not reach application form: {landing}")
                 page.close()
-                return {"jd": jd, "questions": [], "profile_incomplete": True}
+                low = landing.lower()
+                if "profile" in low or "resume" in low:
+                    reason = "Complete your Internshala profile"
+                else:
+                    reason = "Internshala is rate-limiting — try again shortly (or fewer listings)"
+                return {"jd": jd, "questions": [], "profile_incomplete": True,
+                        "block_reason": reason}
     except Exception as e:
         print(f"[scraper] Questions load error: {e}")
 
