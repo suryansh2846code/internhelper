@@ -20,8 +20,19 @@ def profile_dir() -> str:
 
 
 def open_profile(playwright):
-    """A headed, persistent Chromium context (one window, logins persist on disk)."""
-    return playwright.chromium.launch_persistent_context(profile_dir(), headless=False)
+    """A headed, persistent Chromium context (one window, logins persist on disk).
+
+    Clears stale singleton locks first: if a previous Chromium (or a second
+    launch on the same profile) left them behind, the new launch would open and
+    immediately exit → 'browser has been closed'. Only one context uses this
+    profile at a time, so removing them here is safe."""
+    d = profile_dir()
+    for lock in ("SingletonLock", "SingletonCookie", "SingletonSocket"):
+        try:
+            os.remove(os.path.join(d, lock))
+        except OSError:
+            pass
+    return playwright.chromium.launch_persistent_context(d, headless=False)
 
 
 # ── login checks (mirror how each adapter detects an authenticated session) ──
@@ -58,6 +69,12 @@ LOGIN_URLS = {
     "unstop": "https://unstop.com/login",
 }
 _LOGIN_URLS = LOGIN_URLS  # backward-compat alias
+
+
+def is_logged_in(context, platform: str) -> bool:
+    """Whether the given platform looks authenticated in this context."""
+    check = _CHECKS.get(platform)
+    return bool(check and check(context))
 
 
 def goto_login(context, platform: str) -> bool:

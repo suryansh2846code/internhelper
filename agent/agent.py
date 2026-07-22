@@ -202,30 +202,44 @@ def run_job_loop(client, worker, stop_event=None, log=print) -> None:
 
 # ── Terminal entrypoint ──────────────────────────────────────────────────────
 
+def _terminal_login(worker):
+    """Ensure both platforms are logged in, using the worker's ONE persistent
+    context (no second browser launch on the same profile)."""
+    from agent.session import is_logged_in, LOGIN_URLS
+
+    platforms = ["internshala", "unstop"]
+    missing = worker.run(lambda ctx: [p for p in platforms if not is_logged_in(ctx, p)])
+    if not missing:
+        print("[agent] already logged into: " + ", ".join(platforms))
+        return
+
+    print("\n" + "=" * 60)
+    print("  Log into these in the browser window (one at a time):")
+    print("=" * 60)
+    for p in missing:
+        worker.run(lambda ctx, p=p: ctx.new_page().goto(
+            LOGIN_URLS[p], wait_until="domcontentloaded", timeout=30_000))
+        input(f"  → Log into {p}, then press Enter here… ")
+    still = worker.run(lambda ctx: [p for p in missing if not is_logged_in(ctx, p)])
+    print(f"[agent] note: still not detecting {', '.join(still)} — continuing anyway."
+          if still else "[agent] logins saved ✓")
+
+
 def main():
     server = os.getenv("SERVER_URL", "http://localhost:8000")
 
     from browser_session import BrowserWorker
-    from agent.session import ensure_platform_login, open_profile
+    from agent.session import open_profile
 
     client = _connect(server)
     _start_heartbeat(client)
     print(f"[agent] connected to {server}")
 
-    # One-time (per machine) platform login: opens the local profile, checks
-    # Internshala/Unstop, and pauses for a manual login if needed. Skippable via
-    # AGENT_SKIP_LOGIN_CHECK=1 once you know you're logged in.
-    if os.getenv("AGENT_SKIP_LOGIN_CHECK") != "1":
-        from playwright.sync_api import sync_playwright
-        try:
-            with sync_playwright() as pw:
-                ensure_platform_login(pw)
-        except Exception as e:
-            print(f"[agent] login check skipped ({e})")
-
-    # Jobs run against that same persistent profile.
+    # Jobs AND login share one persistent profile / one browser launch.
     worker = BrowserWorker(context_factory=open_profile)
     try:
+        if os.getenv("AGENT_SKIP_LOGIN_CHECK") != "1":
+            _terminal_login(worker)
         run_job_loop(client, worker)
     except KeyboardInterrupt:
         print("\n[agent] shutting down")
