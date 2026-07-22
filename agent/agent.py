@@ -214,6 +214,9 @@ def handle_apply(worker, client, payload: dict) -> dict:
         listing["apply_location"] = profile["location"]
     if profile.get("course_duration"):
         listing["apply_course_duration"] = profile["course_duration"]
+    print(f"[agent] apply profile from server — location={profile.get('location')!r} "
+          f"course_duration={profile.get('course_duration')!r}"
+          + ("" if profile.get("location") else "  (empty → set it in the web app's Search settings)"))
 
     adapter = get_adapter(listing.get("platform"))
     answers = payload.get("answers") or listing.get("final_answers") or {}

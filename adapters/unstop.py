@@ -295,26 +295,38 @@ def _fill_candidate_details(page, listing: dict) -> None:
     for the standalone/CLI flow."""
     location = (listing.get("apply_location") or config.USER_LOCATION or "").strip()
     duration = (listing.get("apply_course_duration") or config.USER_COURSE_DURATION or "").strip()
+    print(f"[unstop] apply details — location={location!r} course_duration={duration!r}")
 
     # Location — type the city and pick the matching autocomplete suggestion.
-    if location:
+    # Unstop only accepts a *selected* suggestion (typed text alone fails
+    # validation), so we click the match or keyboard-select the first result.
+    if not location:
+        print("[unstop] no city in your apply profile — set it in the web app "
+              "(Search settings → 'Your city') so Unstop applies can be filled.")
+    else:
         try:
             loc = page.wait_for_selector("input[name='player_location']", timeout=8000)
         except Exception:
             loc = None
-        if loc and not (loc.input_value() or "").strip():
-            for _ in range(2):  # retry — the suggestion must be clicked to register
+        if not loc:
+            print("[unstop] location field not present on this step")
+        elif not (loc.input_value() or "").strip():
+            for attempt in range(3):
                 try:
                     loc.click()
                     loc.fill("")
                     loc.type(location, delay=90)
                     page.wait_for_timeout(2600)
-                    _click_suggestion(page, location)
+                    if not _click_suggestion(page, location):
+                        loc.press("ArrowDown")     # keyboard-select the first result
+                        page.wait_for_timeout(500)
+                        loc.press("Enter")
                     page.wait_for_timeout(800)
                     if (loc.input_value() or "").strip():
                         break
-                except Exception:
-                    pass
+                except Exception as e:
+                    print(f"[unstop] location attempt {attempt + 1} failed: {e}")
+            print(f"[unstop] location field now: {(loc.input_value() or '')!r}")
 
     # Course duration — select the profile value (by radio value or label text),
     # else leave Unstop's default / pick the first option.
@@ -398,12 +410,14 @@ def _accept_terms(page) -> None:
 
 
 def _click_suggestion(page, term: str) -> bool:
-    term = term.lower()
+    want = term.lower().split(",")[0].strip()
     for sel in ("[role=option]", "mat-option", ".autocomplete-item",
-                "[class*=suggestion]", "[class*=dropdown] li"):
+                "[class*=suggestion] li", "[class*=suggestion]",
+                "[class*=autocomplete] li", "[class*=dropdown] li",
+                "[class*=result] li", "ul li"):
         for opt in page.query_selector_all(sel):
             try:
-                if opt.is_visible() and term.split(",")[0] in (opt.inner_text() or "").lower():
+                if opt.is_visible() and want in (opt.inner_text() or "").lower():
                     opt.click()
                     page.wait_for_timeout(500)
                     return True
