@@ -15,3 +15,9 @@ venv/
 models/
 data/*.db
 .env
+
+# PyInstaller build artifacts
+build/
+dist/
+.buildvenv/
+*.spec.bak
