@@ -638,91 +638,121 @@ function pairCommands(serverUrl, token) {
   };
 }
 
+// ── Connect wizard: pick computer → guided steps → live "Connected ✓" ────────
 let _connectData = null;
 let _connectOS = 'mac';
+let _connectStep = 1;         // 1 = choose computer, 2 = do the steps
+let _connectConnected = false;
+let _connectPollTimer = null;
 
 async function connectComputer() {
   const overlay = document.getElementById('modal-overlay');
   const content = document.getElementById('modal-content');
   content.innerHTML = `<div class="connect-modal"><h2>Connect your computer</h2>
-    <p class="connect-sub">Loading…</p></div>`;
+    <p class="connect-sub"><span class="spinner"></span> Getting things ready…</p></div>`;
   untintModal();
   overlay.classList.remove('hidden');
   try { _connectData = await (await apiFetch('/api/agent/pair-token', { method: 'POST' })).json(); }
   catch { content.innerHTML = `<div class="connect-modal"><h2>Connect your computer</h2>
-    <p class="connect-sub">Couldn't create a pairing code. Try again.</p></div>`; return; }
+    <p class="connect-sub">Couldn't create a pairing code. Please try again.</p></div>`; return; }
 
+  _connectConnected = agentConnected;
+  _connectStep = 1;
   _connectOS = detectOS();
   renderConnect();
 
-  // Poll status; auto-close when the computer connects.
+  // Poll status; flip to the success screen the moment the computer connects.
+  if (_connectPollTimer) clearInterval(_connectPollTimer);
   const started = Date.now();
-  const t = setInterval(async () => {
+  _connectPollTimer = setInterval(async () => {
     await loadAgentStatus();
-    if (agentConnected) {
-      clearInterval(t);
-      const note = document.querySelector('.connect-note');
-      if (note) { note.textContent = '✓ Connected! You can close this.'; note.classList.add('ok'); }
-    } else if (Date.now() - started > 5 * 60 * 1000) {
-      clearInterval(t);
+    if (agentConnected && !_connectConnected) { _connectConnected = true; renderConnect(); }
+    if (agentConnected || Date.now() - started > 10 * 60 * 1000) {
+      clearInterval(_connectPollTimer); _connectPollTimer = null;
     }
-  }, 4000);
+  }, 3000);
 }
 
-function setConnectOS(os) { _connectOS = os; renderConnect(); }
+function connectPick(os) { _connectOS = os; _connectStep = 2; renderConnect(); }
+function connectBack() { _connectStep = 1; renderConnect(); }
+
+function _cmdBox(id, cmd) {
+  return `<div class="cmd-box"><code id="${id}">${cmd}</code>
+    <button class="btn-sm" onclick="copyCmd('${id}')">Copy</button></div>`;
+}
+function _wizItem(n, html) {
+  return `<div class="wiz-item"><span class="wiz-num">${n}</span><div class="wiz-body">${html}</div></div>`;
+}
 
 function renderConnect() {
-  const d = _connectData || {};
-  const os = _connectOS;
-  const cmds = pairCommands(d.server_url || '', d.token || '');
-  const tabs = [['mac', '🍎 macOS'], ['windows', '🪟 Windows'], ['linux', '🐧 Linux']]
-    .map(([k, label]) => `<button class="os-tab ${os === k ? 'active' : ''}" onclick="setConnectOS('${k}')">${label}</button>`).join('');
+  const el = document.getElementById('modal-content');
+  if (!el) return;
+  const head = `<h2>Connect your computer</h2>`;
 
-  const cmdBox = (id, cmd) => `<div class="cmd-box"><code id="${id}">${cmd}</code>
-    <button class="btn-sm" onclick="copyCmd('${id}')">Copy</button></div>`;
-
-  let body;
-  if (os === 'mac' && d.download_mac) {
-    body = `<a class="btn-primary connect-dl" href="${d.download_mac}">⬇ Download for macOS</a>
-      <ol class="connect-steps">
-        <li>Open the downloaded <b>InternHelper Agent</b>.</li>
-        <li>Menu bar ⚡ → <b>Connect (paste code)…</b> → paste the code below.</li>
-        <li>A browser window opens — log into Internshala &amp; Unstop once.</li>
-      </ol>
-      <p class="connect-sub" style="margin-top:8px">Pairing code (expires in ${d.expires_in_min} min):</p>
-      ${cmdBox('pair-code', d.token)}`;
-  } else if (os === 'windows' && d.download_windows) {
-    body = `<a class="btn-primary connect-dl" href="${d.download_windows}">⬇ Download for Windows</a>
-      <ol class="connect-steps">
-        <li>Unzip, then run <b>InternHelperAgent.exe</b> (if SmartScreen warns: <b>More info → Run anyway</b>).</li>
-        <li>A window opens — paste the pairing code below when it asks.</li>
-        <li>A browser window opens — log into Internshala &amp; Unstop once.</li>
-      </ol>
-      <p class="connect-sub" style="margin-top:8px">Pairing code (expires in ${d.expires_in_min} min):</p>
-      ${cmdBox('pair-code', d.token)}`;
-  } else {
-    // Terminal path: one-time setup + the OS-correct run command.
-    const runCmd = os === 'windows'
-      ? `<p class="connect-sub" style="margin:12px 0 4px"><b>PowerShell:</b></p>${cmdBox('cmd-ps', cmds.powershell)}
-         <p class="connect-sub" style="margin:10px 0 4px">or <b>Command Prompt (cmd):</b></p>${cmdBox('cmd-cmd', cmds.cmd)}`
-      : cmdBox('cmd-sh', os === 'mac' ? cmds.mac : cmds.linux);
-    const py = os === 'windows' ? 'python' : 'python3';
-    body = `<p class="connect-sub">One-time setup (needs <b>Python 3.12+</b> and <b>Git</b>), then the pairing command — code expires in ${d.expires_in_min} min:</p>
-      <ol class="connect-steps">
-        <li>Install the agent once:
-          ${cmdBox('cmd-setup', `git clone <your-repo-url> && cd internshala-autoapply && ${py} -m pip install -r requirements-agent.txt && ${py} -m playwright install chromium`)}
-        </li>
-        <li>From the project folder, run:${runCmd}</li>
-        <li>A browser window opens — log into Internshala &amp; Unstop once.</li>
-      </ol>`;
+  // ✓ Success — the agent connected.
+  if (_connectConnected) {
+    el.innerHTML = `<div class="connect-modal wiz-done">
+      ${head}
+      <div class="wiz-check">✓</div>
+      <h3 class="wiz-done-title">Your computer is connected!</h3>
+      <p class="connect-sub">One last thing: in the window that opened on your computer, <b>log into Internshala &amp; Unstop once</b>. Then you're ready.</p>
+      <button class="btn-primary" onclick="closeModalDirect()">Start searching →</button>
+    </div>`;
+    return;
   }
 
-  document.getElementById('modal-content').innerHTML = `<div class="connect-modal">
-    <h2>Connect your computer</h2>
-    <p class="connect-sub">Search &amp; apply run on <b>your</b> machine with your logins.</p>
-    <div class="os-tabs">${tabs}</div>
-    ${body}
-    <p class="connect-note">Waiting for your computer to connect… this box updates automatically.</p>
+  // Step 1 — choose the computer.
+  if (_connectStep === 1) {
+    el.innerHTML = `<div class="connect-modal">
+      ${head}
+      <p class="connect-sub">The search &amp; apply run on <b>your</b> computer with your own logins — so your account stays safe. Pick your computer to start:</p>
+      <div class="os-choice">
+        <button class="os-card" onclick="connectPick('mac')"><span class="os-emoji">🍎</span><span>Mac</span></button>
+        <button class="os-card" onclick="connectPick('windows')"><span class="os-emoji">🪟</span><span>Windows</span></button>
+      </div>
+      <button class="linklike" onclick="connectPick('linux')">I'm on Linux</button>
+    </div>`;
+    return;
+  }
+
+  // Step 2 — the guided steps for the chosen OS.
+  const d = _connectData || {};
+  const osName = _connectOS === 'mac' ? 'Mac' : _connectOS === 'windows' ? 'Windows' : 'Linux';
+  const dl = _connectOS === 'mac' ? d.download_mac : _connectOS === 'windows' ? d.download_windows : '';
+  let steps;
+
+  if (dl) {
+    // Easy path — one-click download available.
+    const openStep = _connectOS === 'mac'
+      ? `<b>Open</b> the downloaded <b>InternHelper Agent</b> (first time: right-click → <b>Open</b>).`
+      : `<b>Unzip</b> and run <b>InternHelperAgent.exe</b> (if Windows warns: <b>More info → Run anyway</b>).`;
+    steps = `<div class="wiz-list">
+      ${_wizItem(1, `<b>Download</b> the app:<br><a class="btn-primary wiz-dl" href="${dl}">⬇ Download for ${osName}</a>`)}
+      ${_wizItem(2, openStep)}
+      ${_wizItem(3, `<b>Paste this code</b> when it asks (expires in ${d.expires_in_min} min):${_cmdBox('pair-code', d.token)}`)}
+      ${_wizItem(4, `A browser opens on your computer — <b>log into Internshala &amp; Unstop once</b>.`)}
+    </div>`;
+  } else {
+    // Technical path — no packaged app yet. Plain-language, one command at a time.
+    const cmds = pairCommands(d.server_url || '', d.token || '');
+    const py = _connectOS === 'windows' ? 'python' : 'python3';
+    const runBox = _connectOS === 'windows'
+      ? `In <b>PowerShell</b>:${_cmdBox('cmd-ps', cmds.powershell)}<span class="wiz-hint">…or in Command Prompt:</span>${_cmdBox('cmd-cmd', cmds.cmd)}`
+      : _cmdBox('cmd-sh', _connectOS === 'mac' ? cmds.mac : cmds.linux);
+    steps = `<p class="wiz-note">⚙️ The one-click app for ${osName} isn't published yet, so this uses the terminal. You'll need <b>Python 3.12+</b> and <b>Git</b> installed.</p>
+      <div class="wiz-list">
+        ${_wizItem(1, `<b>Install it once</b> — paste this in a terminal:${_cmdBox('cmd-setup', `git clone <your-repo-url> && cd internshala-autoapply && ${py} -m pip install -r requirements-agent.txt && ${py} -m playwright install chromium`)}`)}
+        ${_wizItem(2, `<b>Start &amp; connect</b> — from that folder, run (code expires in ${d.expires_in_min} min):${runBox}`)}
+        ${_wizItem(3, `When it asks, the code is already in the command above — just press Enter.`)}
+        ${_wizItem(4, `A browser opens — <b>log into Internshala &amp; Unstop once</b>.`)}
+      </div>`;
+  }
+
+  el.innerHTML = `<div class="connect-modal">
+    ${head}
+    <div class="wiz-topbar"><button class="linklike" onclick="connectBack()">← Change computer</button><span class="wiz-os">${osName}</span></div>
+    ${steps}
+    <div class="wiz-status"><span class="spinner"></span> Waiting for your computer to connect… this updates automatically.</div>
   </div>`;
 }
 

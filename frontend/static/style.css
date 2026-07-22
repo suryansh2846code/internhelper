@@ -588,15 +588,52 @@ input[type="text"]:focus, input[type="number"]:focus, textarea.answer-box:focus,
 .stop-btn { background: var(--red); color: #fff; }
 .stop-btn:hover { opacity: .85; }
 
-/* Connect modal: OS tabs */
-.os-tabs { display: flex; gap: 6px; margin: 6px 0 16px; }
-.os-tab {
-  background: var(--surface2); color: var(--muted); border: 1px solid var(--border);
-  border-radius: 8px; padding: 7px 14px; font-size: 13px; font-weight: 600; cursor: pointer;
-}
-.os-tab:hover { color: var(--text); }
-.os-tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+/* Connect wizard */
 .cmd-box code { white-space: pre-wrap; word-break: break-all; }
+.linklike { background: none; border: none; color: var(--accent); font-size: 13px; font-weight: 600; cursor: pointer; padding: 6px 0; }
+.linklike:hover { text-decoration: underline; }
+
+/* Step 1 — choose computer */
+.os-choice { display: flex; gap: 12px; margin: 18px 0 8px; }
+.os-card {
+  flex: 1; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 22px 12px; display: flex; flex-direction: column; align-items: center; gap: 10px;
+  cursor: pointer; color: var(--text); font-size: 15px; font-weight: 700; transition: transform .12s, box-shadow .12s;
+}
+.os-card:hover { transform: translateY(-2px); box-shadow: 0 10px 26px rgba(0,0,0,.35); border-color: var(--accent); }
+.os-emoji { font-size: 40px; line-height: 1; }
+
+/* Step 2 — numbered steps */
+.wiz-topbar { display: flex; align-items: center; justify-content: space-between; margin: 4px 0 14px; }
+.wiz-os { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.wiz-note {
+  background: rgba(255,176,32,.12); color: #ffcf7a; border-radius: var(--radius-sm);
+  padding: 10px 12px; font-size: 12.5px; line-height: 1.5; margin: 0 0 14px;
+}
+.wiz-list { display: flex; flex-direction: column; gap: 14px; }
+.wiz-item { display: flex; gap: 12px; align-items: flex-start; }
+.wiz-num {
+  flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: #fff;
+  display: grid; place-items: center; font-size: 13px; font-weight: 700; margin-top: 1px;
+}
+.wiz-body { flex: 1; font-size: 14px; line-height: 1.55; }
+.wiz-body .cmd-box { margin-top: 8px; }
+.wiz-dl { display: inline-block; margin-top: 8px; text-decoration: none; }
+.wiz-hint { display: block; font-size: 12px; color: var(--muted); margin: 8px 0 2px; }
+.wiz-status {
+  display: flex; align-items: center; gap: 6px; margin-top: 20px; padding-top: 14px;
+  border-top: 1px solid var(--surface2); color: var(--muted); font-size: 13px; font-weight: 600;
+}
+
+/* Success screen */
+.wiz-done { text-align: center; }
+.wiz-check {
+  width: 64px; height: 64px; margin: 10px auto 6px; border-radius: 50%;
+  background: rgba(52,211,153,.16); color: var(--green);
+  display: grid; place-items: center; font-size: 34px; font-weight: 800;
+}
+.wiz-done-title { margin: 6px 0 8px; font-size: 20px; }
+.wiz-done .btn-primary { margin-top: 14px; }
 
 /* ── Listing detail view (modal) ──────────────────────────────────────────── */
 .tile-title-link { cursor: pointer; }
