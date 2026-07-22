@@ -140,6 +140,13 @@ def handle_apply(worker, client, payload: dict) -> dict:
         except Exception as e:
             print(f"[agent] résumé download failed: {e}")
 
+    # Per-user apply details (city / course duration) some platforms ask for.
+    profile = payload.get("profile") or {}
+    if profile.get("location"):
+        listing["apply_location"] = profile["location"]
+    if profile.get("course_duration"):
+        listing["apply_course_duration"] = profile["course_duration"]
+
     adapter = get_adapter(listing.get("platform"))
     answers = payload.get("answers") or listing.get("final_answers") or {}
 

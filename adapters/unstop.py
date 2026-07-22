@@ -225,9 +225,17 @@ def _find_button(page, pattern: str):
 
 
 def _fill_candidate_details(page, listing: dict) -> None:
-    """Fill Unstop's per-application fields: location, course duration, skills."""
+    """Fill Unstop's per-application fields: location, course duration, skills,
+    and the required agreement checkboxes.
+
+    Location and course duration come from the user's apply profile (set in the
+    web app and injected into the apply job), falling back to the local env vars
+    for the standalone/CLI flow."""
+    location = (listing.get("apply_location") or config.USER_LOCATION or "").strip()
+    duration = (listing.get("apply_course_duration") or config.USER_COURSE_DURATION or "").strip()
+
     # Location — type the city and pick the matching autocomplete suggestion.
-    if config.USER_LOCATION:
+    if location:
         try:
             loc = page.wait_for_selector("input[name='player_location']", timeout=8000)
         except Exception:
@@ -237,30 +245,48 @@ def _fill_candidate_details(page, listing: dict) -> None:
                 try:
                     loc.click()
                     loc.fill("")
-                    loc.type(config.USER_LOCATION, delay=90)
+                    loc.type(location, delay=90)
                     page.wait_for_timeout(2600)
-                    _click_suggestion(page, config.USER_LOCATION)
+                    _click_suggestion(page, location)
                     page.wait_for_timeout(800)
                     if (loc.input_value() or "").strip():
                         break
                 except Exception:
                     pass
 
-    # Course duration — select the configured radio value (or the only option).
-    try:
-        dur = config.USER_COURSE_DURATION
-        radio = (page.query_selector(f"input[name='course_duration'][value='{dur}']") if dur
-                 else page.query_selector("input[name='course_duration']"))
-        if radio and not radio.is_checked():
-            _click_input(page, radio)
-    except Exception:
-        pass
+    # Course duration — select the profile value (by radio value or label text),
+    # else leave Unstop's default / pick the first option.
+    _select_course_duration(page, duration)
 
     # Skills — add each from the matched résumé's keywords.
     _fill_skills(page, listing.get("skills") or [])
 
-    # Accept the required Terms & Conditions checkbox.
+    # Tick the required agreement checkboxes (Terms, declaration, …).
     _accept_terms(page)
+
+
+def _select_course_duration(page, duration: str) -> None:
+    try:
+        radios = page.query_selector_all("input[name='course_duration']")
+        if not radios or any(r.is_checked() for r in radios):
+            return
+        chosen = None
+        if duration:
+            for r in radios:  # exact radio value, e.g. "4"
+                if (r.get_attribute("value") or "") == duration:
+                    chosen = r
+                    break
+            if not chosen:      # else a radio whose label mentions the duration
+                for r in radios:
+                    rid = r.get_attribute("id")
+                    lbl = page.query_selector(f"label[for='{rid}']") if rid else None
+                    txt = (lbl.inner_text() if lbl else "") or ""
+                    if duration.lower() in txt.lower():
+                        chosen = r
+                        break
+        _click_input(page, chosen or radios[0])
+    except Exception:
+        pass
 
 
 def _click_input(page, el) -> None:
@@ -282,16 +308,20 @@ def _click_input(page, el) -> None:
 
 
 def _accept_terms(page) -> None:
-    """Tick the required Terms & Conditions checkbox (not the newsletter one).
+    """Tick every required agreement checkbox (Unstop's register step has more
+    than one — e.g. Terms & Conditions and a declaration).
 
-    The real input is visually hidden by custom styling and sits below the fold,
-    so we match by surrounding text and click its label[for] after scrolling."""
+    The real inputs are visually hidden by custom styling and sit below the fold,
+    so we click each one's label[for] after scrolling. We tick all unchecked
+    boxes except newsletter/marketing opt-ins."""
+    SKIP = ("newsletter", "promotion", "marketing", "update me", "updates",
+            "offers", "subscribe", "notif")
     for cb in page.query_selector_all("input[type=checkbox]"):
         try:
             if page.evaluate("(e) => e.checked", cb):
                 continue
             ctx = (page.evaluate("(e) => (e.closest('label') || e.parentElement || {}).innerText || ''", cb) or "").lower()
-            if not any(k in ctx for k in ("term", "agree", "privacy", "registering")):
+            if any(k in ctx for k in SKIP):
                 continue
             cid = cb.get_attribute("id")
             label = page.query_selector(f"label[for='{cid}']") if cid else None
@@ -300,8 +330,7 @@ def _accept_terms(page) -> None:
                 label.click()
             else:
                 page.evaluate("(e) => { const l = e.closest('label') || e.parentElement; if (l) l.click(); }", cb)
-            page.wait_for_timeout(400)
-            return
+            page.wait_for_timeout(350)
         except Exception:
             continue
 

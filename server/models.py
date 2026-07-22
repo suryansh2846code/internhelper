@@ -58,6 +58,20 @@ class Application(Base):
     user: Mapped[User] = relationship(back_populates="applications")
 
 
+class AgentProfile(Base):
+    """Per-user applicant details that some platforms (Unstop) ask for on every
+    application and don't pull from the account profile — the user's city and
+    course duration. One row per user; injected into apply jobs."""
+    __tablename__ = "agent_profiles"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), unique=True, index=True)
+    location: Mapped[str] = mapped_column(String(120), default="")
+    course_duration: Mapped[str] = mapped_column(String(40), default="")
+
+    user: Mapped[User] = relationship()
+
+
 class AgentDevice(Base):
     """A user's paired local agent (their computer). Heartbeats mark it online."""
     __tablename__ = "agent_devices"

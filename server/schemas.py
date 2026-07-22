@@ -53,6 +53,18 @@ class StatusUpdate(BaseModel):
     status: str
 
 
+# ── Apply profile (per-application details platforms don't store) ──
+class ProfileOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    location: str = ""
+    course_duration: str = ""
+
+
+class ProfileIn(BaseModel):
+    location: str = ""
+    course_duration: str = ""
+
+
 # ── Jobs (agent queue) ──
 class JobCreate(BaseModel):
     kind: str            # search | apply | sync

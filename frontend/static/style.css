@@ -624,8 +624,10 @@ input[type="text"]:focus, input[type="number"]:focus, textarea.answer-box:focus,
 .modal.modal-tinted .detail-jd { color: #1a1a1a; }
 .modal.modal-tinted .detail-section { border: none; }
 .modal.modal-tinted .detail-section h3 { color: #111; }
-.modal.modal-tinted .detail-meta-item { background: rgba(0,0,0,.1); }
-.modal.modal-tinted .chip-static { background: rgba(0,0,0,.14); color: #111; }
+.modal.modal-tinted .detail-meta-item { background: #000; }
+.modal.modal-tinted .detail-meta-k { color: rgba(255,255,255,.6); }
+.modal.modal-tinted .detail-meta-v { color: #fff; }
+.modal.modal-tinted .chip-static { background: #000; color: #fff; }
 .modal.modal-tinted .detail-actions { border-top-color: rgba(0,0,0,.18); }
 
 /* ── Answer custom questions (modal) ──────────────────────────────────────── */

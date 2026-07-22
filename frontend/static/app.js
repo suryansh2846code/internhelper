@@ -645,9 +645,31 @@ function copyPairCmd() {
   });
 }
 
+// ── Apply profile (city / course duration for Unstop) ────────────────────────
+async function loadProfile() {
+  try {
+    const p = await (await apiFetch('/api/profile')).json();
+    const loc = document.getElementById('profile-location');
+    const dur = document.getElementById('profile-course-duration');
+    if (loc) loc.value = p.location || '';
+    if (dur) dur.value = p.course_duration || '';
+  } catch {}
+}
+async function saveProfile() {
+  const loc = (document.getElementById('profile-location') || {}).value || '';
+  const dur = (document.getElementById('profile-course-duration') || {}).value || '';
+  const st = document.getElementById('profile-status');
+  try {
+    await apiFetch('/api/profile', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ location: loc.trim(), course_duration: dur.trim() }) });
+    if (st) { st.textContent = '✓ Saved'; st.style.color = 'var(--green)'; setTimeout(() => { if (st) st.textContent = ''; }, 1500); }
+  } catch { if (st) { st.textContent = 'Save failed'; st.style.color = 'var(--red)'; } }
+}
+
 // ── Boot ─────────────────────────────────────────────────────────────────────
 loadPlatforms();
 loadResumes();
+loadProfile();
 refreshAppliedCount();
 loadAgentStatus();
 setInterval(loadAgentStatus, 12000);

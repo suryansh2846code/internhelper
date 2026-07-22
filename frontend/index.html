@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/style.css?v=41" />
+  <link rel="stylesheet" href="/static/style.css?v=42" />
 </head>
 <body>
   <!-- AUTH GATE -->
@@ -105,6 +105,16 @@
             <input type="number" id="max" value="10" min="1" max="30" />
           </label>
         </div>
+        <p class="step-hint" style="margin:16px 0 8px">Unstop asks for these on every application — set once and auto-apply fills them:</p>
+        <div class="form-grid">
+          <label>Your city (for Unstop)
+            <input type="text" id="profile-location" placeholder="e.g. Faridabad" onchange="saveProfile()" />
+          </label>
+          <label>Course duration (years)
+            <input type="text" id="profile-course-duration" placeholder="e.g. 4" onchange="saveProfile()" />
+          </label>
+        </div>
+        <span id="profile-status" class="status-msg"></span>
         <button id="search-btn" class="btn-primary" onclick="startSearch()">Search all roles →</button>
         <div id="search-status" class="status-msg"></div>
       </section>
@@ -135,6 +145,6 @@
     </div>
   </div>
 
-  <script src="/static/auth.js?v=41"></script>
+  <script src="/static/auth.js?v=42"></script>
 </body>
 </html>

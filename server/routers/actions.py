@@ -9,9 +9,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from server.db import get_db
-from server.models import User, Resume, Job
+from server.models import User, Resume, Job, AgentProfile
 from server.auth import current_user
-from server.schemas import JobOut
+from server.schemas import JobOut, ProfileOut, ProfileIn
 
 router = APIRouter(prefix="/api", tags=["actions"])
 
@@ -60,9 +60,36 @@ def start_search(body: SearchRequest, user: User = Depends(current_user), db: Se
     return _enqueue(db, user.id, "search", payload)
 
 
+def _apply_profile(db: Session, user_id: int) -> dict:
+    p = db.scalar(select(AgentProfile).where(AgentProfile.user_id == user_id))
+    return {"location": p.location, "course_duration": p.course_duration} if p else {}
+
+
+@router.get("/profile", response_model=ProfileOut)
+def get_profile(user: User = Depends(current_user), db: Session = Depends(get_db)):
+    p = db.scalar(select(AgentProfile).where(AgentProfile.user_id == user.id))
+    return p or AgentProfile(user_id=user.id)
+
+
+@router.put("/profile", response_model=ProfileOut)
+def save_profile(body: ProfileIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    p = db.scalar(select(AgentProfile).where(AgentProfile.user_id == user.id))
+    if not p:
+        p = AgentProfile(user_id=user.id)
+        db.add(p)
+    p.location = body.location.strip()
+    p.course_duration = body.course_duration.strip()
+    db.commit()
+    db.refresh(p)
+    return p
+
+
 @router.post("/apply", response_model=JobOut)
 def start_apply(body: ApplyRequest, user: User = Depends(current_user), db: Session = Depends(get_db)):
-    payload = {"listing": body.listing, "resume_id": body.resume_id, "answers": body.answers or {}}
+    # Inject the user's apply profile (city / course duration) so platforms like
+    # Unstop that ask for it on every application can be auto-filled.
+    payload = {"listing": body.listing, "resume_id": body.resume_id,
+               "answers": body.answers or {}, "profile": _apply_profile(db, user.id)}
     return _enqueue(db, user.id, "apply", payload)
 
 
