@@ -143,22 +143,7 @@ def handle_apply(worker, client, payload: dict) -> dict:
     adapter = get_adapter(listing.get("platform"))
     answers = payload.get("answers") or listing.get("final_answers") or {}
 
-    def work(ctx):
-        if not answers:
-            details = adapter.classify(ctx, listing["url"])
-            if details.get("not_logged_in"):
-                return {"ok": False, "message": f"Not logged into {adapter.label} — reconnect your computer and retry."}
-            if details.get("profile_incomplete"):
-                return {"ok": False, "message": details.get("block_reason") or f"Complete your {adapter.label} profile."}
-            questions = details.get("questions") or []
-            if questions:
-                return {"ok": False, "needs_answers": True, "questions": questions,
-                        "jd": details.get("jd", ""),
-                        "message": f"{len(questions)} custom question(s) to answer"}
-        ok, msg = adapter.apply(ctx, listing, answers)
-        return {"ok": ok, "message": msg}
-
-    result = worker.run(work)
+    result = worker.run(lambda ctx: adapter.try_apply(ctx, listing, answers))
     ok = result.get("ok")
     if ok:
         result["applications"] = [{

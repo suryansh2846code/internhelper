@@ -309,6 +309,16 @@ async function directApply(index) {
 function _esc(s) { return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 function _para(s) { return _esc(s).replace(/\n{2,}/g, '</p><p>').replace(/\n/g, '<br>'); }
 
+// The detail modal is painted with the card's own colour; other modals stay dark.
+function tintModal(color) {
+  const m = document.querySelector('#modal-overlay .modal');
+  if (m) { m.style.background = color; m.classList.add('modal-tinted'); }
+}
+function untintModal() {
+  const m = document.querySelector('#modal-overlay .modal');
+  if (m) { m.style.background = ''; m.classList.remove('modal-tinted'); }
+}
+
 function openDetails(index) {
   const l = currentListings[index];
   const content = document.getElementById('modal-content');
@@ -318,9 +328,9 @@ function openDetails(index) {
   const chips = arr => (arr || []).map(s => `<span class="chip chip-static">${_esc(s)}</span>`).join('');
   const jd = (l.jd || '').trim();
   const applyBtn = l.status === 'auto'
-    ? `<button class="btn-primary" onclick="closeModalDirect();directApply(${index})">⚡ Auto-apply</button>`
+    ? `<button class="btn-sm tile-btn" onclick="closeModalDirect();directApply(${index})">⚡ Apply</button>`
     : l.status === 'needs_answers'
-      ? `<button class="btn-primary" onclick="closeModalDirect();openAnswers(${index})">✍️ Answer & apply</button>` : '';
+      ? `<button class="btn-sm tile-btn" onclick="closeModalDirect();openAnswers(${index})">✍️ Answer &amp; apply</button>` : '';
   content.innerHTML = `<div class="detail-modal">
     <div class="detail-head">
       <div class="tile-tags">${l.platform ? `<span class="platform-tag">${platformLabel(l)}</span>` : ''}${l.matched_role ? `<span class="role-tag">${l.matched_role}</span>` : ''}</div>
@@ -339,6 +349,7 @@ function openDetails(index) {
       <a class="btn-sm tile-btn" href="${l.url}" target="_blank" rel="noopener" style="text-decoration:none">Open on ${platformLabel(l)} ↗</a>
     </div>
   </div>`;
+  tintModal(brightColor(index));
   document.getElementById('modal-overlay').classList.remove('hidden');
 }
 
@@ -347,6 +358,7 @@ async function openAnswers(index) {
   const l = currentListings[index];
   const qs = l.questions || [];
   const content = document.getElementById('modal-content');
+  untintModal();
   content.innerHTML = `<div class="answers-modal">
     <h2>Answer to apply</h2>
     <p class="connect-sub">${_esc(l.title)} · ${_esc(l.company)}</p>
@@ -398,12 +410,17 @@ async function applyBatch(indices) {
   document.querySelectorAll('#bulk-bar button').forEach(b => b.disabled = true);
   setResumesLocked(true);
   const prog = document.getElementById('bulk-progress');
+  const PACE_MS = 4000;   // pause between applies so a burst doesn't trip the throttle
   let applied = 0, failed = 0, needAns = 0;
   try {
     for (let n = 0; n < indices.length; n++) {
       if (prog) prog.textContent = `Applying ${n + 1}/${indices.length} · ✓${applied}${failed ? ` ✗${failed}` : ''}${needAns ? ` ✍️${needAns}` : ''}`;
       const r = await _runApply(indices[n]);
       if (r === true) applied++; else if (r === 'needs_answers') needAns++; else failed++;
+      if (n < indices.length - 1) {
+        if (prog) prog.textContent = `Pausing… · ✓${applied}${failed ? ` ✗${failed}` : ''}${needAns ? ` ✍️${needAns}` : ''}`;
+        await new Promise(r => setTimeout(r, PACE_MS));
+      }
     }
   } finally { setResumesLocked(false); }
   if (prog) prog.textContent = `Done · ✓${applied} applied${failed ? ` · ✗${failed} failed` : ''}${needAns ? ` · ✍️${needAns} need answers` : ''}`;
@@ -573,6 +590,7 @@ async function connectComputer() {
   const content = document.getElementById('modal-content');
   content.innerHTML = `<div class="connect-modal"><h2>Connect your computer</h2>
     <p class="connect-sub">Loading…</p></div>`;
+  untintModal();
   overlay.classList.remove('hidden');
   let data;
   try { data = await (await apiFetch('/api/agent/pair-token', { method: 'POST' })).json(); }
@@ -635,4 +653,4 @@ loadAgentStatus();
 setInterval(loadAgentStatus, 12000);
 
 function closeModal(e) { if (e.target === document.getElementById('modal-overlay')) closeModalDirect(); }
-function closeModalDirect() { document.getElementById('modal-overlay').classList.add('hidden'); }
+function closeModalDirect() { untintModal(); document.getElementById('modal-overlay').classList.add('hidden'); }

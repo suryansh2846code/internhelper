@@ -8,9 +8,77 @@ from scraper.internshala import (
     dismiss_blocking_modals,
     proceed_to_application_form,
     on_application_form,
+    _question_text_for,
 )
 
 console = Console()
+
+
+def run_apply(context: BrowserContext, listing: dict, answers: dict) -> dict:
+    """Single-navigation apply used by the agent.
+
+    Reaches the application form once, then:
+      • no custom questions            -> submit -> {ok, message}
+      • custom questions & no answers  -> {ok:False, needs_answers, questions, jd}
+        (bulk/first pass — hand the questions back instead of submitting blank)
+      • answers provided               -> fill them + submit
+
+    Collapsing the old check-then-submit into one form load halves the Apply
+    clicks per application, which matters when auto-applying in bulk (fewer
+    clicks = less chance of tripping Internshala's throttle)."""
+    page = context.new_page()
+    try:
+        page.goto(listing["url"], wait_until="domcontentloaded")
+        page.wait_for_selector("#apply_now_button, .top_apply_now_cta, .apply_now_button", timeout=10_000)
+        dismiss_blocking_modals(page)
+
+        apply_btn = page.query_selector("#apply_now_button, .top_apply_now_cta, .apply_now_button")
+        if not apply_btn:
+            return {"ok": False, "message": "Apply button not found on the listing page."}
+        apply_btn.click()
+        page.wait_for_timeout(3000)
+
+        url = (page.url or "").lower()
+        if "/login" in url or "/register" in url or "/registration" in url:
+            return {"ok": False, "not_logged_in": True,
+                    "message": "Not logged in — Internshala session expired. Reconnect and retry."}
+
+        proceed_to_application_form(page)
+        if not on_application_form(page):
+            landing = (page.url or "").lower()
+            reason = ("Complete your Internshala profile" if ("profile" in landing or "resume" in landing)
+                      else "Internshala is rate-limiting — try again shortly (or fewer listings)")
+            return {"ok": False, "profile_incomplete": True, "message": reason}
+
+        _answer_option_questions(page)
+
+        # Open-ended custom questions are the visible textareas on the form.
+        questions = [_question_text_for(page, ta)
+                     for ta in page.query_selector_all("textarea") if ta.is_visible()]
+
+        # First pass with no answers and open-ended questions: don't submit blank —
+        # hand the questions back so the user can answer them.
+        if questions and not answers:
+            return {"ok": False, "needs_answers": True, "questions": questions,
+                    "jd": listing.get("jd", ""),
+                    "message": f"{len(questions)} custom question(s) to answer"}
+
+        for question, answer in (answers or {}).items():
+            textarea = _find_textarea_for_question(page, question)
+            if textarea:
+                textarea.fill(answer)
+            else:
+                console.print(f"[yellow]Field not found for: {question[:60]}[/yellow]")
+
+        _upload_resume(page, listing.get("resume_path"))
+        ok, msg = _click_submit(page, listing)
+        return {"ok": ok, "message": msg}
+    except Exception as e:
+        msg = f"Error submitting: {e}"
+        console.print(f"[red]{msg} ({listing.get('url')})[/red]")
+        return {"ok": False, "message": msg}
+    finally:
+        page.close()
 
 
 def submit_application(context: BrowserContext, listing: dict, answers: dict) -> tuple[bool, str]:

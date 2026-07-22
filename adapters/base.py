@@ -44,6 +44,26 @@ class PlatformAdapter(ABC):
     def apply(self, context: BrowserContext, listing: dict, answers: dict) -> tuple[bool, str]:
         """Submit the application. Returns (success, message)."""
 
+    def try_apply(self, context: BrowserContext, listing: dict, answers: dict) -> dict:
+        """Agent-facing apply: submit if possible, else hand back what's needed.
+
+        Returns a dict with `ok` + `message`, and optionally `needs_answers` +
+        `questions` (+ `jd`) when the form has open-ended questions the user must
+        answer first. Default: probe with classify(), then submit via apply()
+        (two form loads). Adapters can override to do it in a single load."""
+        if not answers:
+            d = self.classify(context, listing["url"])
+            if d.get("not_logged_in"):
+                return {"ok": False, "message": f"Not logged into {self.label} — reconnect and retry."}
+            if d.get("profile_incomplete"):
+                return {"ok": False, "message": d.get("block_reason") or f"Complete your {self.label} profile."}
+            questions = d.get("questions") or []
+            if questions:
+                return {"ok": False, "needs_answers": True, "questions": questions,
+                        "jd": d.get("jd", ""), "message": f"{len(questions)} custom question(s) to answer"}
+        ok, msg = self.apply(context, listing, answers or {})
+        return {"ok": ok, "message": msg}
+
     def sync_applications(self, context: BrowserContext) -> list[dict]:
         """Read the platform's 'my applications' page and return
         [{url, title, company, status}] for status syncing. Default: unsupported."""

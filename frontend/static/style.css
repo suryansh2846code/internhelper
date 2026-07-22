@@ -612,6 +612,22 @@ input[type="text"]:focus, input[type="number"]:focus, textarea.answer-box:focus,
 .chip-static { background: var(--surface2); color: var(--text); font-weight: 600; padding: 4px 10px; border-radius: 6px; font-size: 12px; }
 .detail-actions { display: flex; gap: 10px; align-items: center; margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--surface2); flex-wrap: wrap; }
 
+/* Detail modal painted with the card's colour — dark text + translucent-black
+   chrome so everything reads on the bright background. */
+.modal.modal-tinted { color: #111; background-image: var(--noise); }
+.modal.modal-tinted .modal-close { background: rgba(0,0,0,.14); color: #111; }
+.modal.modal-tinted .detail-head { border-bottom-color: rgba(0,0,0,.18); }
+.modal.modal-tinted .detail-company { color: #111; }
+.modal.modal-tinted .detail-stipend,
+.modal.modal-tinted .detail-meta-k,
+.modal.modal-tinted .connect-sub { color: rgba(0,0,0,.62); }
+.modal.modal-tinted .detail-jd { color: #1a1a1a; }
+.modal.modal-tinted .detail-section { border: none; }
+.modal.modal-tinted .detail-section h3 { color: #111; }
+.modal.modal-tinted .detail-meta-item { background: rgba(0,0,0,.1); }
+.modal.modal-tinted .chip-static { background: rgba(0,0,0,.14); color: #111; }
+.modal.modal-tinted .detail-actions { border-top-color: rgba(0,0,0,.18); }
+
 /* ── Answer custom questions (modal) ──────────────────────────────────────── */
 .answers-modal { max-width: 620px; }
 .answers-modal h2 { margin: 0 0 4px; font-size: 20px; }

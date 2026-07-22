@@ -6,7 +6,7 @@ from playwright.sync_api import BrowserContext
 
 from adapters.base import PlatformAdapter
 from scraper.internshala import search_internships, get_listing_details, get_listing_info
-from apply.form_filler import submit_application
+from apply.form_filler import submit_application, run_apply
 
 APPLICATIONS_URL = "https://internshala.com/student/applications"
 
@@ -26,6 +26,10 @@ class InternshalaAdapter(PlatformAdapter):
 
     def apply(self, context: BrowserContext, listing: dict, answers: dict) -> tuple[bool, str]:
         return submit_application(context, listing, answers)
+
+    def try_apply(self, context: BrowserContext, listing: dict, answers: dict) -> dict:
+        # Single form load: check for custom questions and submit in one pass.
+        return run_apply(context, listing, answers or {})
 
     def sync_applications(self, context: BrowserContext) -> list[dict]:
         page = context.new_page()
