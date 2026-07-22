@@ -110,21 +110,25 @@ def handle_search(worker, client, payload: dict) -> dict:
                     if not adapter.supports_auto_apply:
                         listings.append({**r, **base, "status": "link", "reason": f"Apply on {adapter.label}"})
                         continue
-                    _t.sleep(2.5)   # pace Apply clicks so Internshala doesn't rate-limit us
-                    details = adapter.classify(context, r["url"])
-                    q, pi = details.get("questions", []), details.get("profile_incomplete", False)
-                    status = "link" if (pi or q) else "auto"
-                    reason = (details.get("block_reason") or f"Complete your {adapter.label} profile") if pi \
-                        else (f"{len(q)} custom question(s)" if q else "")
-                    listings.append({**r, **base, "jd": details.get("jd", ""),
-                                     "questions": q, "reason": reason, "status": status})
+                    # Just READ each listing page for full details — no Apply click.
+                    # Clicking Apply on every listing here is what tripped
+                    # Internshala's rate-limiting; that check now happens on demand
+                    # at apply time. Every auto-apply listing starts as 'auto'.
+                    _t.sleep(1.0)   # gentle pacing between detail page loads
+                    info = adapter.fetch_details(context, r["url"])
+                    listings.append({**r, **base, **info, "status": "auto"})
         return listings
 
     return {"listings": worker.run(work)}
 
 
 def handle_apply(worker, client, payload: dict) -> dict:
-    """payload: {listing:{...}, resume_id}. Applies and returns the application record."""
+    """payload: {listing:{...}, resume_id, answers?}.
+
+    First attempt (no answers): peek at the apply form. If it has open-ended
+    custom questions, hand them back as needs_answers so the user can answer them
+    instead of submitting blank; otherwise submit straight through. A second call
+    carrying the user's answers skips the check and submits."""
     from adapters import get_adapter
 
     listing = dict(payload.get("listing") or {})
@@ -137,8 +141,25 @@ def handle_apply(worker, client, payload: dict) -> dict:
             print(f"[agent] résumé download failed: {e}")
 
     adapter = get_adapter(listing.get("platform"))
-    ok, msg = worker.run(lambda ctx: adapter.apply(ctx, listing, listing.get("final_answers") or {}))
-    result = {"ok": ok, "message": msg}
+    answers = payload.get("answers") or listing.get("final_answers") or {}
+
+    def work(ctx):
+        if not answers:
+            details = adapter.classify(ctx, listing["url"])
+            if details.get("not_logged_in"):
+                return {"ok": False, "message": f"Not logged into {adapter.label} — reconnect your computer and retry."}
+            if details.get("profile_incomplete"):
+                return {"ok": False, "message": details.get("block_reason") or f"Complete your {adapter.label} profile."}
+            questions = details.get("questions") or []
+            if questions:
+                return {"ok": False, "needs_answers": True, "questions": questions,
+                        "jd": details.get("jd", ""),
+                        "message": f"{len(questions)} custom question(s) to answer"}
+        ok, msg = adapter.apply(ctx, listing, answers)
+        return {"ok": ok, "message": msg}
+
+    result = worker.run(work)
+    ok = result.get("ok")
     if ok:
         result["applications"] = [{
             "url": listing["url"], "title": listing.get("title", ""),

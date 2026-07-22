@@ -26,6 +26,15 @@ class SearchRequest(BaseModel):
 class ApplyRequest(BaseModel):
     listing: dict
     resume_id: int | None = None
+    answers: dict | None = None      # user's answers to custom questions (2nd pass)
+
+
+class AnswerGenRequest(BaseModel):
+    resume_id: int | None = None
+    title: str = ""
+    company: str = ""
+    jd: str = ""
+    questions: list[str] = []
 
 
 def _enqueue(db: Session, user_id: int, kind: str, payload: dict) -> Job:
@@ -53,8 +62,29 @@ def start_search(body: SearchRequest, user: User = Depends(current_user), db: Se
 
 @router.post("/apply", response_model=JobOut)
 def start_apply(body: ApplyRequest, user: User = Depends(current_user), db: Session = Depends(get_db)):
-    payload = {"listing": body.listing, "resume_id": body.resume_id}
+    payload = {"listing": body.listing, "resume_id": body.resume_id, "answers": body.answers or {}}
     return _enqueue(db, user.id, "apply", payload)
+
+
+@router.post("/answers")
+def generate_answers(body: AnswerGenRequest, user: User = Depends(current_user),
+                     db: Session = Depends(get_db)):
+    """Draft answers to a listing's custom questions from the user's résumé + JD.
+
+    Best-effort: if the LLM isn't configured or errors, returns blank drafts so
+    the user can still type their own answers."""
+    resume_text = ""
+    if body.resume_id:
+        r = db.get(Resume, body.resume_id)
+        if r and r.user_id == user.id:
+            resume_text = r.text or ""
+    try:
+        from applicant.answer_generator import generate_answers as _gen
+        answers = _gen(body.title, body.company, body.jd, resume_text, body.questions)
+    except Exception as e:
+        print(f"[answers] generation failed: {e}", flush=True)
+        answers = {q: "" for q in body.questions}
+    return {"answers": answers}
 
 
 @router.post("/sync", response_model=JobOut)

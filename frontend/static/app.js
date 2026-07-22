@@ -225,24 +225,30 @@ function listingHTML(l, i) {
   const logo = l.logo
     ? `<img class="tile-logo" src="${l.logo}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'tile-logo tile-logo-fallback',textContent:'${(l.company || '?').charAt(0)}'}))">`
     : `<span class="tile-logo tile-logo-fallback">${(l.company || '?').charAt(0)}</span>`;
-  const link = `<a href="${l.url}" target="_blank" rel="noopener" class="btn-sm tile-btn" style="text-decoration:none">Apply on ${platformLabel(l)} ↗</a>`;
+  const link = `<a href="${l.url}" target="_blank" rel="noopener" class="btn-sm tile-btn" style="text-decoration:none">Open on ${platformLabel(l)} ↗</a>`;
+  const detailsBtn = `<button class="btn-sm tile-btn tile-btn-ghost" onclick="openDetails(${i})">View details</button>`;
   let actions, note = '';
   switch (l.status) {
     case 'auto':
       actions = `<label class="tile-check"><input type="checkbox" onchange="toggleSelect(${i}, this.checked)" ${selected.has(i) ? 'checked' : ''}> Select</label>
-        <button class="btn-sm tile-btn" onclick="directApply(${i})">⚡ Auto-apply</button>`;
+        <button class="btn-sm tile-btn" onclick="directApply(${i})">⚡ Auto-apply</button>${detailsBtn}`;
+      break;
+    case 'checking':   actions = `<span class="tile-status"><span class="spinner"></span> Checking form…</span>`; break;
+    case 'needs_answers':
+      actions = `<button class="btn-sm tile-btn" onclick="openAnswers(${i})">✍️ Answer & apply</button>${detailsBtn}`;
+      note = `${(l.questions || []).length} custom question(s) — answer to apply`;
       break;
     case 'submitting': actions = `<span class="tile-status"><span class="spinner"></span> Applying…</span>`; break;
     case 'submitted':  actions = `<span class="tile-status">✓ Applied</span>`; break;
-    case 'error':      actions = link; note = `✗ ${l.error || 'Auto-apply failed'} — apply manually`; break;
-    default:           actions = link; note = l.reason || 'Apply manually';
+    case 'error':      actions = `${link}${detailsBtn}`; note = `✗ ${l.error || 'Auto-apply failed'} — apply manually`; break;
+    default:           actions = `${link}${detailsBtn}`; note = l.reason || 'Apply manually';
   }
   const character = `/assets/illustration/${(i % 5) + 1}.png`;
   return `
     <div class="tile-main">
       <div class="tile-top">${logo}<div class="tile-tags">${platTag}${roleTag}</div></div>
       <div class="tile-body">
-        <span class="tile-title">${l.title}</span>
+        <span class="tile-title tile-title-link" onclick="openDetails(${i})">${l.title}</span>
         <span class="tile-sub">${l.company}</span>
         <span class="tile-stipend">${l.stipend}</span>
         ${note ? `<span class="tile-note">${note}</span>` : ''}
@@ -259,17 +265,30 @@ function refreshListing(index) {
 }
 
 // ── Apply (enqueue apply job → poll) ─────────────────────────────────────────
-async function _runApply(index) {
+// Returns true (applied), false (error/blocked), or 'needs_answers' when the
+// listing has custom questions the user must answer first. Pass `answers` on the
+// second pass (after the user fills them in) to submit straight through.
+async function _runApply(index, answers) {
   const l = currentListings[index];
-  patchListingStatus(index, 'submitting');
+  patchListingStatus(index, answers ? 'submitting' : 'checking');
   if (demoMode) { await new Promise(r => setTimeout(r, 700)); patchListingStatus(index, 'submitted'); return true; }
+  const req = { listing: l, resume_id: l.resume_id };
+  if (answers) req.answers = answers;
   let job;
-  try { job = await (await apiFetch('/api/apply', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ listing: l, resume_id: l.resume_id }) })).json(); }
+  try { job = await (await apiFetch('/api/apply', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(req) })).json(); }
   catch { l.status = 'error'; l.error = 'Could not queue'; refreshListing(index); return false; }
   const done = await pollJob(job.id);
-  const ok = done.status === 'done' && done.result && done.result.ok;
+  const res = (done.status === 'done' && done.result) || {};
+  if (res.needs_answers) {
+    l.status = 'needs_answers';
+    l.questions = res.questions || [];
+    l.jd = res.jd || l.jd || '';
+    refreshListing(index);
+    return 'needs_answers';
+  }
+  const ok = !!res.ok;
   l.status = ok ? 'submitted' : 'error';
-  if (!ok) l.error = (done.result && done.result.message) || done.error || 'failed';
+  if (!ok) l.error = res.message || done.error || 'failed';
   refreshListing(index);
   return ok;
 }
@@ -277,7 +296,96 @@ async function _runApply(index) {
 async function directApply(index) {
   if (!confirm('Auto-apply now? Your local agent submits this on the platform using your session.')) return;
   setResumesLocked(true);
-  try { await _runApply(index); }
+  let r;
+  try { r = await _runApply(index); }
+  finally { setResumesLocked(false); }
+  if (r === 'needs_answers') openAnswers(index);
+  refreshAppliedCount();
+}
+
+// ── Detail view (full listing info in a modal) ───────────────────────────────
+function _esc(s) { return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+function _para(s) { return _esc(s).replace(/\n{2,}/g, '</p><p>').replace(/\n/g, '<br>'); }
+
+function openDetails(index) {
+  const l = currentListings[index];
+  const content = document.getElementById('modal-content');
+  const meta = l.meta || {};
+  const metaRows = Object.keys(meta).map(k =>
+    `<div class="detail-meta-item"><span class="detail-meta-k">${_esc(k)}</span><span class="detail-meta-v">${_esc(meta[k])}</span></div>`).join('');
+  const chips = arr => (arr || []).map(s => `<span class="chip chip-static">${_esc(s)}</span>`).join('');
+  const jd = (l.jd || '').trim();
+  const applyBtn = l.status === 'auto'
+    ? `<button class="btn-primary" onclick="closeModalDirect();directApply(${index})">⚡ Auto-apply</button>`
+    : l.status === 'needs_answers'
+      ? `<button class="btn-primary" onclick="closeModalDirect();openAnswers(${index})">✍️ Answer & apply</button>` : '';
+  content.innerHTML = `<div class="detail-modal">
+    <div class="detail-head">
+      <div class="tile-tags">${l.platform ? `<span class="platform-tag">${platformLabel(l)}</span>` : ''}${l.matched_role ? `<span class="role-tag">${l.matched_role}</span>` : ''}</div>
+      <h2>${_esc(l.title)}</h2>
+      <p class="detail-company">${_esc(l.company)}</p>
+      <p class="detail-stipend">${_esc(l.stipend || '')}</p>
+    </div>
+    ${metaRows ? `<div class="detail-meta">${metaRows}</div>` : ''}
+    ${(l.skills || []).length ? `<div class="detail-section"><h3>Skills required</h3><div class="chip-row">${chips(l.skills)}</div></div>` : ''}
+    ${jd ? `<div class="detail-section"><h3>About the internship</h3><div class="detail-jd"><p>${_para(jd)}</p></div></div>`
+         : `<p class="connect-sub">No description was scraped for this listing.</p>`}
+    ${(l.perks || []).length ? `<div class="detail-section"><h3>Perks</h3><div class="chip-row">${chips(l.perks)}</div></div>` : ''}
+    ${l.about_company ? `<div class="detail-section"><h3>About ${_esc(l.company)}</h3><div class="detail-jd"><p>${_para(l.about_company)}</p></div></div>` : ''}
+    <div class="detail-actions">
+      ${applyBtn}
+      <a class="btn-sm tile-btn" href="${l.url}" target="_blank" rel="noopener" style="text-decoration:none">Open on ${platformLabel(l)} ↗</a>
+    </div>
+  </div>`;
+  document.getElementById('modal-overlay').classList.remove('hidden');
+}
+
+// ── Answer custom questions, then apply ──────────────────────────────────────
+async function openAnswers(index) {
+  const l = currentListings[index];
+  const qs = l.questions || [];
+  const content = document.getElementById('modal-content');
+  content.innerHTML = `<div class="answers-modal">
+    <h2>Answer to apply</h2>
+    <p class="connect-sub">${_esc(l.title)} · ${_esc(l.company)}</p>
+    <p class="connect-sub"><span class="spinner"></span> Drafting answers from your résumé…</p></div>`;
+  document.getElementById('modal-overlay').classList.remove('hidden');
+
+  let drafts = {};
+  if (!demoMode) {
+    try {
+      const r = await (await apiFetch('/api/answers', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ resume_id: l.resume_id, title: l.title, company: l.company, jd: l.jd || '', questions: qs }),
+      })).json();
+      drafts = r.answers || {};
+    } catch {}
+  }
+  const fields = qs.map((q, i) => `
+    <label class="answer-field">
+      <span class="answer-q">${_esc(q)}</span>
+      <textarea id="ans-${i}" rows="4">${_esc(drafts[q] || '')}</textarea>
+    </label>`).join('');
+  content.innerHTML = `<div class="answers-modal">
+    <h2>Answer to apply</h2>
+    <p class="connect-sub">${_esc(l.title)} · ${_esc(l.company)}</p>
+    <p class="answers-hint">AI drafted these from your résumé — edit them, then submit.</p>
+    ${fields}
+    <div class="answers-actions">
+      <button class="btn-primary" onclick="submitAnswers(${index})">Submit application</button>
+      <button class="btn-ghost" onclick="closeModalDirect()">Cancel</button>
+    </div></div>`;
+}
+
+async function submitAnswers(index) {
+  const l = currentListings[index];
+  const qs = l.questions || [];
+  const answers = {};
+  qs.forEach((q, i) => { const el = document.getElementById(`ans-${i}`); answers[q] = el ? el.value.trim() : ''; });
+  if (qs.some(q => !answers[q]) && !confirm('Some answers are empty. Submit anyway?')) return;
+  closeModalDirect();
+  setResumesLocked(true);
+  try { await _runApply(index, answers); }
   finally { setResumesLocked(false); }
   refreshAppliedCount();
 }
@@ -288,14 +396,15 @@ async function applyBatch(indices) {
   document.querySelectorAll('#bulk-bar button').forEach(b => b.disabled = true);
   setResumesLocked(true);
   const prog = document.getElementById('bulk-progress');
-  let applied = 0, failed = 0;
+  let applied = 0, failed = 0, needAns = 0;
   try {
     for (let n = 0; n < indices.length; n++) {
-      if (prog) prog.textContent = `Applying ${n + 1}/${indices.length} · ✓${applied}${failed ? ` ✗${failed}` : ''}`;
-      (await _runApply(indices[n])) ? applied++ : failed++;
+      if (prog) prog.textContent = `Applying ${n + 1}/${indices.length} · ✓${applied}${failed ? ` ✗${failed}` : ''}${needAns ? ` ✍️${needAns}` : ''}`;
+      const r = await _runApply(indices[n]);
+      if (r === true) applied++; else if (r === 'needs_answers') needAns++; else failed++;
     }
   } finally { setResumesLocked(false); }
-  if (prog) prog.textContent = `Done · ✓${applied} applied${failed ? ` · ✗${failed} failed` : ''}`;
+  if (prog) prog.textContent = `Done · ✓${applied} applied${failed ? ` · ✗${failed} failed` : ''}${needAns ? ` · ✍️${needAns} need answers` : ''}`;
   selected.clear();
   refreshAppliedCount();
   setTimeout(() => renderListings(currentListings), 2500);
@@ -310,7 +419,7 @@ function renderBulkBar(autoIndices) {
   const cAll = brightColor(2), cSel = brightColor(7);
   bar.innerHTML = `
     <button class="btn-sm pop-btn" style="--pop:${cAll}" onclick='applyBatch(${JSON.stringify(autoIndices)})'>
-      ⚡ Apply to all ${autoIndices.length} no-question listing${autoIndices.length !== 1 ? 's' : ''}</button>
+      ⚡ Auto-apply to all ${autoIndices.length} listing${autoIndices.length !== 1 ? 's' : ''}</button>
     <button id="apply-selected-btn" class="btn-sm pop-btn" style="--pop:${cSel}" onclick="applyBatch([...selected])" ${selected.size ? '' : 'disabled'}>
       Apply to selected (${selected.size})</button>
     <span id="bulk-progress" class="bulk-progress"></span>`;
@@ -404,7 +513,7 @@ async function syncApplications() {
 const DEMO_LISTINGS = [
   { title: "Full Stack Development Internship", company: "Codemax Digital", url: "#", stipend: "₹15,000 - ₹25,000/month", platform: "unstop", matched_role: "fullstack", status: "auto", logo: "" },
   { title: "Backend Development Internship", company: "NayePankh Foundation", url: "#", stipend: "Unpaid", platform: "internshala", matched_role: "backend", status: "auto", logo: "" },
-  { title: "Frontend Developer (React) Internship", company: "Nexora", url: "#", stipend: "₹10,000/month", platform: "unstop", matched_role: "frontend", status: "link", reason: "2 custom question(s) — apply manually", logo: "" },
+  { title: "Frontend Developer (React) Internship", company: "Nexora", url: "#", stipend: "₹10,000/month", platform: "unstop", matched_role: "frontend", status: "needs_answers", questions: ["Why do you want to work with us?", "Describe a React project you're proud of."], logo: "" },
   { title: "Web Development Internship", company: "Intern Crowd", url: "#", stipend: "Not disclosed", platform: "unstop", matched_role: "fullstack", status: "submitted", logo: "" },
   { title: "Product Management Internship", company: "BrightLabs", url: "#", stipend: "₹20,000/month", platform: "internshala", matched_role: "product", status: "link", reason: "Complete your Internshala profile to apply", logo: "" },
   { title: "MERN Stack Developer Internship", company: "SwiftBL", url: "#", stipend: "₹5,000 - ₹15,000/month", platform: "unstop", matched_role: "fullstack", status: "auto", logo: "" },
@@ -422,7 +531,14 @@ const DEMO_RESUMES = [
 function loadDemo() {
   demoMode = true; activeFilter = 'all';
   renderResumeCards(DEMO_RESUMES);
-  renderListings(DEMO_LISTINGS.map(l => ({ ...l })));
+  renderListings(DEMO_LISTINGS.map(l => ({
+    jd: "Selected candidates will work alongside the product team on live features.\n\nDay-to-day responsibilities:\n1. Build and ship user-facing components.\n2. Collaborate on code reviews and testing.\n3. Fix bugs and improve performance.",
+    skills: ["Communication", "Problem solving", "Git"],
+    perks: ["Certificate", "Letter of recommendation", "Flexible hours"],
+    meta: { "Start Date": "Immediately", "Duration": "3 Months", "Stipend": l.stipend, "Apply By": "30 Jul 2026", "Openings": "2" },
+    about_company: `${l.company} is a fast-growing team building products people love.`,
+    ...l,
+  })));
   refreshAppliedCount();
   document.getElementById('results-panel').scrollIntoView({ behavior: 'smooth' });
 }

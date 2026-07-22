@@ -5,7 +5,7 @@ while conforming to the PlatformAdapter interface."""
 from playwright.sync_api import BrowserContext
 
 from adapters.base import PlatformAdapter
-from scraper.internshala import search_internships, get_listing_details
+from scraper.internshala import search_internships, get_listing_details, get_listing_info
 from apply.form_filler import submit_application
 
 APPLICATIONS_URL = "https://internshala.com/student/applications"
@@ -17,6 +17,9 @@ class InternshalaAdapter(PlatformAdapter):
 
     def search(self, context: BrowserContext, filters: dict) -> list[dict]:
         return search_internships(context, filters)
+
+    def fetch_details(self, context: BrowserContext, url: str) -> dict:
+        return get_listing_info(context, url)
 
     def classify(self, context: BrowserContext, url: str) -> dict:
         return get_listing_details(context, url)

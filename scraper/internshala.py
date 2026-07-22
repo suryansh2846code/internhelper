@@ -141,6 +141,51 @@ def search_internships(context: BrowserContext, filters: dict) -> list[dict]:
     return listings
 
 
+def get_listing_info(context: BrowserContext, url: str) -> dict:
+    """Scrape a listing's full details WITHOUT starting an apply.
+
+    Reading the detail page is ordinary browsing and doesn't trip Internshala's
+    apply throttle — unlike get_listing_details, which clicks Apply to detect
+    custom questions. Used during search so every card carries its full JD plus
+    stipend/duration/skills/perks for the in-app detail view; whether a listing
+    has custom questions is decided later, at apply time."""
+    page = context.new_page()
+    try:
+        if not _goto_with_retry(page, url):
+            return {}
+        try:
+            page.wait_for_selector("#details_container", timeout=15_000)
+        except Exception:
+            return {}
+        info = page.evaluate(r"""() => {
+          const t = el => ((el && el.innerText) || '').replace(/ /g, ' ').trim();
+          const out = { jd: '', meta: {}, skills: [], perks: [], about_company: '' };
+          out.jd = t(document.querySelector('.internship_details'));
+          // Key/value detail items: Start Date, Duration, Stipend, Apply By, #openings.
+          document.querySelectorAll('.other_detail_item, .detail_view .item, .internship_other_details_container .item').forEach(it => {
+            const h = t(it.querySelector('.item_heading, .heading_5_5'));
+            const b = t(it.querySelector('.item_body, .stipend_container, .heading_6'));
+            if (h && b && h.length < 40 && !out.meta[h]) out.meta[h.replace(/\s+/g, ' ')] = b.replace(/\s+/g, ' ');
+          });
+          // Skill chips.
+          document.querySelectorAll('.round_tabs_container .round_tabs, .skills_required_container .round_tabs').forEach(s => {
+            const v = t(s); if (v && !out.skills.includes(v)) out.skills.push(v);
+          });
+          // Perk chips.
+          document.querySelectorAll('.perks_container .round_tabs, .perks .round_tabs').forEach(p => {
+            const v = t(p); if (v && !out.perks.includes(v)) out.perks.push(v);
+          });
+          out.about_company = t(document.querySelector('.about_company_text_container, .about_company .text-container, .aboutwrapper .text-container'));
+          return out;
+        }""")
+        return info or {}
+    except Exception as e:
+        print(f"[scraper] detail scrape error: {e}")
+        return {}
+    finally:
+        page.close()
+
+
 def _goto_with_retry(page, url: str, attempts: int = 3) -> bool:
     """Navigate to url, retrying on transient aborts (net::ERR_ABORTED).
     Returns True if the page loaded, False if all attempts failed."""

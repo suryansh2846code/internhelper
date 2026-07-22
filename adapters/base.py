@@ -26,10 +26,19 @@ class PlatformAdapter(ABC):
     def search(self, context: BrowserContext, filters: dict) -> list[dict]:
         """Return listing dicts with at least url, title, company, stipend."""
 
+    def fetch_details(self, context: BrowserContext, url: str) -> dict:
+        """Rich listing details for the in-app detail view — full JD plus any
+        structured fields (stipend, duration, skills, perks, about company).
+
+        Scraped by *reading* the listing page only, with no apply click, so it
+        doesn't trip platform apply throttles. Default: no extra details."""
+        return {}
+
     @abstractmethod
     def classify(self, context: BrowserContext, url: str) -> dict:
-        """Open a listing and return {jd, questions, profile_incomplete}.
-        No custom questions -> auto-appliable; questions -> apply manually."""
+        """Open a listing's apply form and return {jd, questions, profile_incomplete}.
+        Run at apply time: no custom questions -> submit directly; questions ->
+        hand them back for the user to answer first."""
 
     @abstractmethod
     def apply(self, context: BrowserContext, listing: dict, answers: dict) -> tuple[bool, str]:
