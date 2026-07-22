@@ -208,7 +208,9 @@ function renderListings(listings) {
     card.className = 'listing-card';
     card.id = `listing-${realIndex}`;
     card.style.backgroundColor = brightColor(realIndex);
+    card.style.cursor = 'pointer';
     card.innerHTML = listingHTML(l, realIndex);
+    card.addEventListener('click', () => openDetails(realIndex));
     grid.appendChild(card);
   });
   renderBulkBar(filtered.filter(l => l.status === 'auto').map(l => listings.indexOf(l)));
@@ -225,35 +227,35 @@ function listingHTML(l, i) {
   const logo = l.logo
     ? `<img class="tile-logo" src="${l.logo}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'tile-logo tile-logo-fallback',textContent:'${(l.company || '?').charAt(0)}'}))">`
     : `<span class="tile-logo tile-logo-fallback">${(l.company || '?').charAt(0)}</span>`;
-  const link = `<a href="${l.url}" target="_blank" rel="noopener" class="btn-sm tile-btn" style="text-decoration:none">Open on ${platformLabel(l)} ↗</a>`;
-  const detailsBtn = `<button class="btn-sm tile-btn tile-btn-ghost" onclick="openDetails(${i})">View details</button>`;
+  // Single primary action per card: Apply. The whole card opens the details
+  // view (wired in renderListings); .tile-actions stops that click from bubbling.
+  const applyBtn = `<button class="btn-sm tile-btn" onclick="directApply(${i})">⚡ Apply</button>`;
   let actions, note = '';
   switch (l.status) {
     case 'auto':
-      actions = `<label class="tile-check"><input type="checkbox" onchange="toggleSelect(${i}, this.checked)" ${selected.has(i) ? 'checked' : ''}> Select</label>
-        <button class="btn-sm tile-btn" onclick="directApply(${i})">⚡ Auto-apply</button>${detailsBtn}`;
+      actions = `<label class="tile-check"><input type="checkbox" onchange="toggleSelect(${i}, this.checked)" ${selected.has(i) ? 'checked' : ''}> Select</label>${applyBtn}`;
       break;
     case 'checking':   actions = `<span class="tile-status"><span class="spinner"></span> Checking form…</span>`; break;
     case 'needs_answers':
-      actions = `<button class="btn-sm tile-btn" onclick="openAnswers(${i})">✍️ Answer & apply</button>${detailsBtn}`;
+      actions = `<button class="btn-sm tile-btn" onclick="openAnswers(${i})">✍️ Answer &amp; apply</button>`;
       note = `${(l.questions || []).length} custom question(s) — answer to apply`;
       break;
     case 'submitting': actions = `<span class="tile-status"><span class="spinner"></span> Applying…</span>`; break;
     case 'submitted':  actions = `<span class="tile-status">✓ Applied</span>`; break;
-    case 'error':      actions = `${link}${detailsBtn}`; note = `✗ ${l.error || 'Auto-apply failed'} — apply manually`; break;
-    default:           actions = `${link}${detailsBtn}`; note = l.reason || 'Apply manually';
+    case 'error':      actions = applyBtn; note = `✗ ${l.error || 'Apply failed'} — tap to retry`; break;
+    default:           actions = applyBtn; if (l.reason) note = l.reason;
   }
   const character = `/assets/illustration/${(i % 5) + 1}.png`;
   return `
     <div class="tile-main">
       <div class="tile-top">${logo}<div class="tile-tags">${platTag}${roleTag}</div></div>
       <div class="tile-body">
-        <span class="tile-title tile-title-link" onclick="openDetails(${i})">${l.title}</span>
+        <span class="tile-title">${l.title}</span>
         <span class="tile-sub">${l.company}</span>
         <span class="tile-stipend">${l.stipend}</span>
         ${note ? `<span class="tile-note">${note}</span>` : ''}
       </div>
-      <div class="tile-actions">${actions}</div>
+      <div class="tile-actions" onclick="event.stopPropagation()">${actions}</div>
     </div>
     <div class="tile-hero"><img src="${character}" alt="" loading="lazy"></div>`;
 }

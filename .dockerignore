@@ -4,6 +4,5 @@ __pycache__/
 .git/
 data/
 .env
-assets/illustration/*.png
 node_modules/
 .playwright/
