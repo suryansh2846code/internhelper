@@ -6,7 +6,9 @@ build time) + rumps + the agent code, so a user double-clicks one app."""
 import os
 from PyInstaller.utils.hooks import collect_all
 
-ROOT = os.path.abspath(os.getcwd())
+# SPECPATH is the directory containing this spec (…/packaging); repo root is its parent.
+ROOT = os.path.abspath(os.path.join(SPECPATH, ".."))
+ENTRY = os.path.join(SPECPATH, "run_agent_app.py")
 
 datas, binaries, hiddenimports = [], [], []
 for pkg in ("playwright", "rumps"):
@@ -14,6 +16,11 @@ for pkg in ("playwright", "rumps"):
     datas += d
     binaries += b
     hiddenimports += h
+
+# Do NOT bundle Chromium — PyInstaller can't re-codesign the pre-signed
+# 'Google Chrome for Testing'. It's downloaded to the user's cache on first run.
+datas = [(s, dd) for (s, dd) in datas if ".local-browsers" not in dd]
+binaries = [(s, dd) for (s, dd) in binaries if ".local-browsers" not in dd]
 
 # Adapters/scraper are imported dynamically (get_adapter), so name them explicitly.
 hiddenimports += [
@@ -26,7 +33,7 @@ hiddenimports += [
 ]
 
 a = Analysis(
-    ["packaging/run_agent_app.py"],
+    [ENTRY],
     pathex=[ROOT],
     binaries=binaries,
     datas=datas,

@@ -10,8 +10,10 @@ source .buildvenv/bin/activate
 pip install -q --upgrade pip
 pip install -q -r requirements-agent.txt pyinstaller
 
-echo "== installing Chromium INTO the package (bundled with the app) =="
-PLAYWRIGHT_BROWSERS_PATH=0 python -m playwright install chromium
+# Chromium is NOT bundled (bundling the pre-signed browser breaks codesigning);
+# the app downloads it to the user's cache on first launch. Remove any browsers
+# already in the package so PyInstaller's playwright hook can't pull them in.
+find .buildvenv -type d -name ".local-browsers" -exec rm -rf {} + 2>/dev/null || true
 
 echo "== building the .app =="
 pyinstaller --noconfirm --clean packaging/InternHelperAgent.spec
