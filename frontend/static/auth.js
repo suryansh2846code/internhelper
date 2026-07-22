@@ -29,7 +29,7 @@ function showApp() {
   if (!_appLoaded) {
     _appLoaded = true;
     const s = document.createElement('script');
-    s.src = '/static/app.js?v=46';
+    s.src = '/static/app.js?v=47';
     document.body.appendChild(s);
   }
 }

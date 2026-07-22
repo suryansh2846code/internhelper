@@ -1,0 +1,44 @@
+name: Build Windows agent
+
+# PyInstaller is per-platform, so the Windows .exe is built on a Windows runner.
+# Trigger manually (Actions tab → Run workflow) or by pushing a v* tag.
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-agent.txt pyinstaller
+
+      - name: Build .exe
+        run: pyinstaller --noconfirm --clean packaging/InternHelperAgent-win.spec
+
+      - name: Validate (driver + runtime imports)
+        run: dist/InternHelperAgent/InternHelperAgent.exe --check
+
+      - name: Zip
+        run: Compress-Archive -Path "dist/InternHelperAgent/*" -DestinationPath "dist/InternHelperAgent-windows.zip"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: InternHelperAgent-windows
+          path: dist/InternHelperAgent-windows.zip
+
+      - name: Attach to release (on tag)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/InternHelperAgent-windows.zip

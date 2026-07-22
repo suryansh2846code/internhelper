@@ -694,8 +694,8 @@ function renderConnect() {
   } else if (os === 'windows' && d.download_windows) {
     body = `<a class="btn-primary connect-dl" href="${d.download_windows}">⬇ Download for Windows</a>
       <ol class="connect-steps">
-        <li>Run the downloaded <b>InternHelper Agent</b>.</li>
-        <li>Tray ⚡ → <b>Connect (paste code)…</b> → paste the code below.</li>
+        <li>Unzip, then run <b>InternHelperAgent.exe</b> (if SmartScreen warns: <b>More info → Run anyway</b>).</li>
+        <li>A window opens — paste the pairing code below when it asks.</li>
         <li>A browser window opens — log into Internshala &amp; Unstop once.</li>
       </ol>
       <p class="connect-sub" style="margin-top:8px">Pairing code (expires in ${d.expires_in_min} min):</p>

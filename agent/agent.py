@@ -10,6 +10,7 @@ Usage:
     python -m agent.agent
 """
 import os
+import re
 import sys
 import json
 import time
@@ -70,8 +71,45 @@ def _connect(server: str | None) -> ServerClient:
     if email and password:
         return ServerClient.login(server, email, password)
 
+    # Interactive fallback — the packaged console app (and a plain terminal run)
+    # ask for the pairing code instead of requiring env vars.
+    try:
+        interactive = sys.stdin is not None and sys.stdin.isatty()
+    except Exception:
+        interactive = False
+    if interactive:
+        return _pair_interactive(server)
+
     sys.exit("No credentials. Set AGENT_PAIR_TOKEN (from the web app's Connect panel), "
              "or AGENT_EMAIL + AGENT_PASSWORD.")
+
+
+def _pair_interactive(server: str) -> ServerClient:
+    """Prompt for the pairing code (accepts the whole 'SERVER_URL=… AGENT_PAIR_TOKEN=…'
+    command or just the code) and pair this device."""
+    print("\n" + "=" * 60)
+    print("  Connect this computer to InternHelper")
+    print("  Web app → 'Connect your computer' → copy the pairing code.")
+    print("=" * 60)
+    while True:
+        raw = input("\nPaste the pairing code (or full command): ").strip()
+        if not raw:
+            continue
+        token = raw
+        if "AGENT_PAIR_TOKEN=" in raw:                     # pasted the full command
+            m = re.search(r"AGENT_PAIR_TOKEN=[\"']?([^\s\"']+)", raw)
+            if m:
+                token = m.group(1)
+            sm = re.search(r"SERVER_URL=[\"']?([^\s\"']+)", raw)
+            if sm:
+                server = sm.group(1)
+        try:
+            client, key = ServerClient.pair(server, token, device_name=socket.gethostname())
+            _save_identity({"server": server, "agent_key": key})
+            print(f"[agent] paired ✓ — device key saved to {IDENTITY_PATH}")
+            return client
+        except Exception as e:
+            print(f"[agent] pairing failed: {e}\nThe code expires in ~15 min — get a fresh one and retry.")
 
 
 def _start_heartbeat(client: ServerClient) -> None:

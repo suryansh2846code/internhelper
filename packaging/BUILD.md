@@ -54,11 +54,48 @@ xcrun stapler staple "dist/InternHelper Agent.app"
    (Railway → service → Variables.) When set, the Connect modal shows the download
    button; the terminal command stays as an "advanced / has the repo" fallback.
 
-## Windows / Linux (later)
+## Windows
 
-The agent core is cross-platform; only the tray UI differs. Windows can use a
-`pystray`-based variant of `agent/app.py` and `pyinstaller` with `--onedir`.
-Not built yet — Windows users use the terminal agent for now.
+The Windows agent is a **console app** (`packaging/run_agent_win.py`): on first
+run it prompts for the pairing code, saves the device key, then runs the job
+loop. Chromium downloads on first run, same as macOS.
+
+### Build (on Windows)
+
+PyInstaller is per-platform, so build on a Windows machine (or let CI do it):
+
+```powershell
+python -m pip install -r requirements-agent.txt pyinstaller
+pyinstaller --noconfirm --clean packaging/InternHelperAgent-win.spec
+dist/InternHelperAgent/InternHelperAgent.exe --check   # expect DRIVER OK + RUNTIME IMPORTS OK
+Compress-Archive -Path "dist/InternHelperAgent/*" -DestinationPath "dist/InternHelperAgent-windows.zip"
+```
+
+### Build via GitHub Actions (recommended — no Windows machine needed)
+
+`.github/workflows/build-windows.yml` builds the `.exe` on a `windows-latest`
+runner. Trigger it from the **Actions** tab (**Run workflow**), or push a `v*`
+tag to also attach the zip to the GitHub Release. Download the
+`InternHelperAgent-windows` artifact.
+
+### Publish + wire the download button
+
+Upload `InternHelperAgent-windows.zip` as a GitHub Release asset, then set:
+
+```
+AGENT_DOWNLOAD_WINDOWS = https://github.com/<you>/internhelper/releases/download/vX/InternHelperAgent-windows.zip
+```
+
+(Railway → service → Variables.) The Connect modal's **Windows** tab then shows a
+**Download for Windows** button; otherwise it falls back to the terminal command.
+
+> Unsigned `.exe`s trigger SmartScreen ("More info → Run anyway"). Code-signing
+> with an OV/EV certificate removes the warning (optional).
+
+## Linux (later)
+
+The agent core is cross-platform; Linux users use the terminal agent
+(`python -m agent.agent`) for now.
 
 ## Notes
 
