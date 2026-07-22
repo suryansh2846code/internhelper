@@ -79,7 +79,8 @@ class JobResult(BaseModel):
 class PairTokenOut(BaseModel):
     token: str
     expires_in_min: int
-    command: str          # ready-to-run one-liner (terminal fallback)
+    command: str              # ready-to-run one-liner (terminal fallback)
+    download_mac: str = ""    # packaged app URL (empty if not published yet)
 
 
 class PairIn(BaseModel):

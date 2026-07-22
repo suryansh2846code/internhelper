@@ -52,6 +52,9 @@ class AgentApp(rumps.App):
     # ── browser worker (lazy) ────────────────────────────────────────────────
     def _ensure_worker(self):
         if self.worker is None:
+            from agent._bootstrap import ensure_chromium
+            if not ensure_chromium(self._log):
+                self._notify("Browser setup", "Couldn't download the browser. Check your connection.")
             from browser_session import BrowserWorker
             self.worker = BrowserWorker(context_factory=open_profile)
         return self.worker

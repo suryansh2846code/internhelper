@@ -136,6 +136,7 @@ h1, h2, h3, .brand { font-family: 'Space Grotesk', system-ui, sans-serif; }
 .connect-steps { color: var(--text); font-size: 13.5px; line-height: 1.7; margin: 0 0 12px; padding-left: 20px; }
 .connect-note { color: var(--muted); font-size: 13px; font-weight: 600; }
 .connect-note.ok { color: var(--green); }
+.connect-dl { display: inline-block; text-decoration: none; margin: 4px 0 12px; }
 
 /* ── Buttons ────────────────────────────────────────────────────────────── */
 .btn-ghost {

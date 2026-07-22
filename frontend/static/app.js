@@ -461,17 +461,30 @@ async function connectComputer() {
   catch { content.innerHTML = `<div class="connect-modal"><h2>Connect your computer</h2>
     <p class="connect-sub">Couldn't create a pairing code. Try again.</p></div>`; return; }
 
+  const dl = data.download_mac
+    ? `<a class="btn-primary connect-dl" href="${data.download_mac}">⬇ Download for macOS</a>
+       <ol class="connect-steps">
+         <li>Open the downloaded <b>InternHelper Agent</b>.</li>
+         <li>Menu bar ⚡ → <b>Connect (paste code)…</b> → paste the code below.</li>
+         <li>A browser window opens — log into Internshala &amp; Unstop once.</li>
+       </ol>
+       <p class="connect-sub" style="margin-top:8px">Pairing code (expires in ${data.expires_in_min} min):</p>
+       <div class="cmd-box"><code id="pair-cmd">${data.token}</code>
+         <button class="btn-sm" onclick="copyPairCmd()">Copy</button></div>`
+    : `<p class="connect-sub">Run this once in a terminal — it pairs this computer
+        (code expires in ${data.expires_in_min} min):</p>
+       <div class="cmd-box"><code id="pair-cmd">${data.command}</code>
+         <button class="btn-sm" onclick="copyPairCmd()">Copy</button></div>
+       <ol class="connect-steps">
+         <li>Open Terminal in the project folder.</li>
+         <li>Paste the command above and press Enter.</li>
+         <li>A browser window opens — log into Internshala &amp; Unstop once.</li>
+       </ol>`;
+
   content.innerHTML = `<div class="connect-modal">
     <h2>Connect your computer</h2>
-    <p class="connect-sub">The search &amp; apply run on <b>your</b> machine with your logins.
-      Run this once in a terminal — it pairs this computer (code expires in ${data.expires_in_min} min):</p>
-    <div class="cmd-box"><code id="pair-cmd">${data.command}</code>
-      <button class="btn-sm" onclick="copyPairCmd()">Copy</button></div>
-    <ol class="connect-steps">
-      <li>Open Terminal in the project folder.</li>
-      <li>Paste the command above and press Enter.</li>
-      <li>A Chrome window opens — log into Internshala &amp; Unstop once.</li>
-    </ol>
+    <p class="connect-sub">The search &amp; apply run on <b>your</b> machine with your logins.</p>
+    ${dl}
     <p class="connect-note">Waiting for your computer to connect… this box updates automatically.</p>
   </div>`;
 

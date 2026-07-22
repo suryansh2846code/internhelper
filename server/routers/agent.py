@@ -29,7 +29,8 @@ def pair_token(request: Request, user: User = Depends(current_user)):
     # Terminal fallback (works with the cloned repo today). The packaged desktop
     # app will consume the same token via a deep link instead. python3 on macOS.
     command = f"SERVER_URL={base} AGENT_PAIR_TOKEN={token} python3 -m agent.agent"
-    return PairTokenOut(token=token, expires_in_min=settings.pairing_token_ttl_min, command=command)
+    return PairTokenOut(token=token, expires_in_min=settings.pairing_token_ttl_min,
+                        command=command, download_mac=settings.agent_download_mac)
 
 
 @router.post("/pair", response_model=PairOut)

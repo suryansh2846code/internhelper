@@ -244,6 +244,9 @@ def main():
     _start_heartbeat(client)
     print(f"[agent] connected to {client.base}")
 
+    from agent._bootstrap import ensure_chromium
+    ensure_chromium()
+
     # Jobs AND login share one persistent profile / one browser launch.
     worker = BrowserWorker(context_factory=open_profile)
     try:
