@@ -283,51 +283,73 @@ def run_job_loop(client, worker, stop_event=None, log=print) -> None:
 # ── Terminal entrypoint ──────────────────────────────────────────────────────
 
 def _terminal_login(worker):
-    """Ensure both platforms are logged in, using the worker's ONE persistent
-    context (no second browser launch on the same profile)."""
-    from agent.session import is_logged_in, LOGIN_URLS
+    """Walk the user through logging into each platform, in the worker's ONE
+    persistent browser (logins persist on disk and are reused next run).
+
+    A visible browser window opens on each login page with an InternHelper
+    banner; the console prompt is a fallback for people who miss the banner."""
+    from agent.session import is_logged_in, open_login_page
 
     platforms = ["internshala", "unstop"]
     missing = worker.run(lambda ctx: [p for p in platforms if not is_logged_in(ctx, p)])
     if not missing:
-        print("[agent] already logged into: " + ", ".join(platforms))
+        print("[agent] already logged into both platforms ✓")
         return
 
-    print("\n" + "=" * 60)
-    print("  Log into these in the browser window (one at a time):")
-    print("=" * 60)
+    print("\n" + "=" * 64)
+    print("  ONE-TIME LOGIN — a browser window has opened.")
+    print("  Log into each platform there (look for the purple InternHelper bar),")
+    print("  then come back here and press Enter.")
+    print("=" * 64)
     for p in missing:
-        worker.run(lambda ctx, p=p: ctx.new_page().goto(
-            LOGIN_URLS[p], wait_until="domcontentloaded", timeout=30_000))
-        input(f"  → Log into {p}, then press Enter here… ")
+        worker.run(lambda ctx, p=p: open_login_page(ctx, p))
+        print(f"\n  → A browser window is showing the {p.title()} login page.")
+        input(f"    Log in there, then press Enter here to continue… ")
     still = worker.run(lambda ctx: [p for p in missing if not is_logged_in(ctx, p)])
-    print(f"[agent] note: still not detecting {', '.join(still)} — continuing anyway."
+    print(f"[agent] note: still not detecting a login for {', '.join(still)} — "
+          "finish in the browser if needed; jobs for those may fail otherwise."
           if still else "[agent] logins saved ✓")
 
 
-def main():
-    server = os.getenv("SERVER_URL")   # may be None → _connect reuses saved pairing
-
+def run_agent(server: str | None, interactive_login: bool = True) -> None:
+    """Connect, then run the job loop — starting the loop BEFORE the login
+    walkthrough so the web app never sits on 'waiting for agent' while the user
+    signs in (the shared browser session means a login applies to jobs at once).
+    Shared by the terminal agent and the packaged Windows console app."""
     from browser_session import BrowserWorker
     from agent.session import open_profile
+    from agent._bootstrap import ensure_chromium
 
     client = _connect(server)
     _start_heartbeat(client)
     print(f"[agent] connected to {client.base}")
 
-    from agent._bootstrap import ensure_chromium
-    ensure_chromium()
+    print("[agent] preparing the browser (first run downloads it, ~150 MB — please wait)…")
+    if not ensure_chromium():
+        print("[agent] WARNING: couldn't set up the browser. Check your internet, then re-run.")
 
     # Jobs AND login share one persistent profile / one browser launch.
     worker = BrowserWorker(context_factory=open_profile)
+    stop = threading.Event()
+    threading.Thread(target=run_job_loop, args=(client, worker, stop),
+                     kwargs={"log": print}, daemon=True).start()
     try:
-        if os.getenv("AGENT_SKIP_LOGIN_CHECK") != "1":
-            _terminal_login(worker)
-        run_job_loop(client, worker)
+        if interactive_login and os.getenv("AGENT_SKIP_LOGIN_CHECK") != "1":
+            try:
+                _terminal_login(worker)
+            except Exception as e:
+                print(f"[agent] login step error (you can still log in in the browser window): {e}")
+        print("\n[agent] Ready. Keep this window open — search & apply from the web app now.\n")
+        stop.wait()                      # run until Ctrl+C
     except KeyboardInterrupt:
         print("\n[agent] shutting down")
     finally:
+        stop.set()
         worker.close()
+
+
+def main():
+    run_agent(os.getenv("SERVER_URL"))   # server may be None → _connect reuses saved pairing
 
 
 if __name__ == "__main__":

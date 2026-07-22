@@ -1,9 +1,12 @@
 """PyInstaller entry point for the Windows console agent.
 
 A double-click .exe: on first run it prompts for the pairing code (from the web
-app's "Connect your computer"), saves the device key, then runs the job loop
-against a local persistent browser. Chromium is downloaded on first run
-(agent/_bootstrap.py), not bundled.
+app's "Connect your computer"), then runs the job loop against a local
+persistent browser. Chromium is downloaded on first run, not bundled.
+
+The shared run flow (agent.agent.run_agent) starts the job loop *before* the
+login walkthrough, so the web app never sits on "waiting for agent" while you
+sign in.
 
 Run with `--check` to validate the bundled driver + runtime imports, then exit."""
 import os
@@ -36,13 +39,12 @@ if __name__ == "__main__":
     if "--check" in sys.argv:
         _check()
         sys.exit(0)
-    from agent.agent import main
     try:
+        from agent.agent import main
         main()
     except SystemExit:
         raise
     except Exception:
         import traceback
         traceback.print_exc()
-        # Keep the console window open so the user can read the error.
-        input("\nSomething went wrong. Press Enter to close…")
+        input("\nSomething went wrong. Press Enter to close…")   # keep the window open

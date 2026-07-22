@@ -77,6 +77,38 @@ def is_logged_in(context, platform: str) -> bool:
     return bool(check and check(context))
 
 
+_BANNER_JS = r"""(msg) => {
+  try {
+    let b = document.getElementById('__ih_banner');
+    if (!b) { b = document.createElement('div'); b.id = '__ih_banner';
+      (document.body || document.documentElement).appendChild(b); }
+    b.textContent = msg;
+    b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:2147483647;'
+      + 'background:#7c5cff;color:#fff;font:600 15px/1.4 system-ui,sans-serif;'
+      + 'padding:12px 18px;text-align:center;box-shadow:0 2px 10px rgba(0,0,0,.35)';
+  } catch (e) {}
+}"""
+
+
+def open_login_page(context, platform: str) -> None:
+    """Open a platform's login page and stamp an InternHelper banner on it, so
+    the browser window itself tells the user what to do (the console prompt is
+    easy to miss behind the browser)."""
+    url = LOGIN_URLS.get(platform)
+    if not url:
+        return
+    page = context.new_page()
+    try:
+        page.goto(url, wait_until="domcontentloaded", timeout=30_000)
+        page.evaluate(
+            _BANNER_JS,
+            f"👋 InternHelper: log into {platform.title()} on this page. "
+            f"When done, go back to the InternHelper window and press Enter.",
+        )
+    except Exception:
+        pass
+
+
 def goto_login(context, platform: str) -> bool:
     """Navigate the browser to a platform's login page (non-blocking; for the GUI).
 
