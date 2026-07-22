@@ -312,10 +312,13 @@ def _terminal_login(worker):
 
 
 def run_agent(server: str | None, interactive_login: bool = True) -> None:
-    """Connect, then run the job loop — starting the loop BEFORE the login
-    walkthrough so the web app never sits on 'waiting for agent' while the user
-    signs in (the shared browser session means a login applies to jobs at once).
-    Shared by the terminal agent and the packaged Windows console app."""
+    """Connect, log into the platforms once, then run the job loop.
+
+    Login happens BEFORE the loop on purpose: the agent reuses a single browser
+    tab, so if jobs ran during login they'd keep navigating that tab away from
+    the login page. Log in first (guided by an on-page banner), then jobs run
+    without fighting for the tab. Shared by the terminal agent and the packaged
+    Windows console app."""
     from browser_session import BrowserWorker
     from agent.session import open_profile
     from agent._bootstrap import ensure_chromium
@@ -330,9 +333,6 @@ def run_agent(server: str | None, interactive_login: bool = True) -> None:
 
     # Jobs AND login share one persistent profile / one browser launch.
     worker = BrowserWorker(context_factory=open_profile)
-    stop = threading.Event()
-    threading.Thread(target=run_job_loop, args=(client, worker, stop),
-                     kwargs={"log": print}, daemon=True).start()
     try:
         if interactive_login and os.getenv("AGENT_SKIP_LOGIN_CHECK") != "1":
             try:
@@ -340,11 +340,10 @@ def run_agent(server: str | None, interactive_login: bool = True) -> None:
             except Exception as e:
                 print(f"[agent] login step error (you can still log in in the browser window): {e}")
         print("\n[agent] Ready. Keep this window open — search & apply from the web app now.\n")
-        stop.wait()                      # run until Ctrl+C
+        run_job_loop(client, worker)     # runs until Ctrl+C
     except KeyboardInterrupt:
         print("\n[agent] shutting down")
     finally:
-        stop.set()
         worker.close()
 
 
