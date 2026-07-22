@@ -741,7 +741,12 @@ function renderConnect() {
       : _cmdBox('cmd-sh', _connectOS === 'mac' ? cmds.mac : cmds.linux);
     steps = `<p class="wiz-note">⚙️ The one-click app for ${osName} isn't published yet, so this uses the terminal. You'll need <b>Python 3.12+</b> and <b>Git</b> installed.</p>
       <div class="wiz-list">
-        ${_wizItem(1, `<b>Install it once</b> — paste this in a terminal:${_cmdBox('cmd-setup', `git clone <your-repo-url> && cd internshala-autoapply && ${py} -m pip install -r requirements-agent.txt && ${py} -m playwright install chromium`)}`)}
+        ${_wizItem(1, `<b>Install it once</b> — paste these in a terminal (one after another):${_cmdBox('cmd-setup', [
+          'git clone https://github.com/suryansh2846code/internhelper.git',
+          'cd internhelper',
+          `${py} -m pip install -r requirements-agent.txt`,
+          `${py} -m playwright install chromium`,
+        ].join('\n'))}`)}
         ${_wizItem(2, `<b>Start &amp; connect</b> — from that folder, run (code expires in ${d.expires_in_min} min):${runBox}`)}
         ${_wizItem(3, `When it asks, the code is already in the command above — just press Enter.`)}
         ${_wizItem(4, `A browser opens — <b>log into Internshala &amp; Unstop once</b>.`)}
