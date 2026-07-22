@@ -1,4 +1,7 @@
 """Thin HTTP client the local agent uses to talk to the server ('brain')."""
+import os
+import re
+
 import requests
 
 
@@ -50,6 +53,14 @@ class ServerClient:
     def download_resume(self, resume_id: int, dest_path: str) -> str:
         r = self.s.get(f"{self.base}/api/resumes/{resume_id}/file", timeout=60)
         r.raise_for_status()
+        # Preserve the original extension from Content-Disposition so downstream
+        # parsing (load_resume / ensure_pdf) detects .docx/.pdf correctly — else a
+        # binary .docx read as UTF-8 text throws 'invalid continuation byte'.
+        cd = r.headers.get("Content-Disposition", "")
+        m = re.search(r'filename="?([^"]+)"?', cd)
+        ext = os.path.splitext(m.group(1))[1] if m else ""
+        if ext and not dest_path.lower().endswith(ext.lower()):
+            dest_path += ext
         with open(dest_path, "wb") as f:
             f.write(r.content)
         return dest_path
