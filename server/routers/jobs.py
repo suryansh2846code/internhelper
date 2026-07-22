@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from server.db import get_db
-from server.models import User, Job
+from server.models import User, Job, AgentControl
 from server.auth import current_user
 from server.schemas import JobCreate, JobOut, JobResult
 from server.routers.applications import upsert_applications
@@ -47,6 +47,9 @@ def get_job(job_id: int, user: User = Depends(current_user), db: Session = Depen
 @router.post("/claim", response_model=JobOut | None)
 def claim_next(user: User = Depends(current_user), db: Session = Depends(get_db)):
     """Atomically hand the agent this user's next queued job (Postgres SKIP LOCKED)."""
+    ctrl = db.scalar(select(AgentControl).where(AgentControl.user_id == user.id))
+    if ctrl and ctrl.paused:
+        return None      # paused from the web app — don't hand out work
     stmt = (select(Job)
             .where(Job.user_id == user.id, Job.status == "queued")
             .order_by(Job.created_at)

@@ -92,11 +92,28 @@ def handle_search(worker, client, payload: dict) -> dict:
     platforms = payload.get("platforms") or [p["name"] for p in list_platforms()]
     roles = payload.get("roles") or []
 
+    # Snapshot the stop counter so a "Stop" from the web app (which bumps it)
+    # aborts this search between listings.
+    try:
+        start_seq = client.get_control().get("stop_seq", 0)
+    except Exception:
+        start_seq = 0
+
+    def stop_requested():
+        try:
+            return client.get_control().get("stop_seq", 0) != start_seq
+        except Exception:
+            return False
+
     def work(context):
-        seen, listings = set(), []
+        seen, listings, stopped = set(), [], False
         for platform in platforms:
+            if stopped:
+                break
             adapter = get_adapter(platform)
             for role in roles:
+                if stopped:
+                    break
                 kws = " ".join(role.get("keywords", [])) or role.get("role", "")
                 filters = {"keywords": kws, "location": payload.get("location", "work from home"),
                            "stipend_min": payload.get("stipend_min", 0),
@@ -104,6 +121,9 @@ def handle_search(worker, client, payload: dict) -> dict:
                 base = {"platform": adapter.name, "matched_role": role.get("role", ""),
                         "resume_id": role.get("resume_id")}
                 for r in adapter.search(context, filters):
+                    if stop_requested():
+                        stopped = True
+                        break
                     if r["url"] in seen:
                         continue
                     seen.add(r["url"])

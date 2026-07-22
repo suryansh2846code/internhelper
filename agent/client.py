@@ -46,6 +46,12 @@ class ServerClient:
         r.raise_for_status()
         return r.json() or None
 
+    def get_control(self) -> dict:
+        """Read pause/stop state (used to abort a long search between listings)."""
+        r = self.s.get(f"{self.base}/api/agent/control", timeout=15)
+        r.raise_for_status()
+        return r.json() or {}
+
     def report(self, job_id: int, status: str, result: dict | None = None, error: str = "") -> None:
         self.s.post(f"{self.base}/api/jobs/{job_id}/result", timeout=60,
                     json={"status": status, "result": result or {}, "error": error})

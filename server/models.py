@@ -72,6 +72,20 @@ class AgentProfile(Base):
     user: Mapped[User] = relationship()
 
 
+class AgentControl(Base):
+    """Per-user run controls the agent honours on its next poll:
+    `paused` stops it claiming new jobs; bumping `stop_seq` tells the in-flight
+    search to abort early. One row per user."""
+    __tablename__ = "agent_controls"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), unique=True, index=True)
+    paused: Mapped[bool] = mapped_column(default=False)
+    stop_seq: Mapped[int] = mapped_column(default=0)
+
+    user: Mapped[User] = relationship()
+
+
 class AgentDevice(Base):
     """A user's paired local agent (their computer). Heartbeats mark it online."""
     __tablename__ = "agent_devices"

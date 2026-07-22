@@ -10,12 +10,22 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from server.db import get_db
-from server.models import User, AgentDevice
+from server.models import User, AgentDevice, AgentControl, Job
 from server.auth import current_user, current_device, create_pairing_token, create_agent_key, _decode
 from server.config import settings
-from server.schemas import PairTokenOut, PairIn, PairOut, AgentStatusOut
+from server.schemas import PairTokenOut, PairIn, PairOut, AgentStatusOut, AgentControlOut
 
 router = APIRouter(prefix="/api/agent", tags=["agent"])
+
+
+def _control(db: Session, user_id: int) -> AgentControl:
+    c = db.scalar(select(AgentControl).where(AgentControl.user_id == user_id))
+    if not c:
+        c = AgentControl(user_id=user_id)
+        db.add(c)
+        db.commit()
+        db.refresh(c)
+    return c
 
 
 @router.post("/pair-token", response_model=PairTokenOut)
@@ -69,14 +79,57 @@ def heartbeat(dev=Depends(current_device), db: Session = Depends(get_db)):
 @router.get("/status", response_model=AgentStatusOut)
 def status(user: User = Depends(current_user), db: Session = Depends(get_db)):
     """Web app: is any of this user's computers currently connected?"""
+    paused = _control(db, user.id).paused
     device = db.scalars(
         select(AgentDevice).where(AgentDevice.user_id == user.id, AgentDevice.last_seen.isnot(None))
         .order_by(AgentDevice.last_seen.desc()).limit(1)
     ).first()
     if not device or not device.last_seen:
-        return AgentStatusOut(connected=False)
+        return AgentStatusOut(connected=False, paused=paused)
     last = device.last_seen
     if last.tzinfo is None:            # SQLite returns naive; Postgres tz-aware
         last = last.replace(tzinfo=timezone.utc)
     fresh = datetime.now(timezone.utc) - last < timedelta(seconds=settings.agent_online_secs)
-    return AgentStatusOut(connected=fresh, device_name=device.name, last_seen=device.last_seen)
+    return AgentStatusOut(connected=fresh, device_name=device.name,
+                          last_seen=device.last_seen, paused=paused)
+
+
+# ── Run controls (pause / resume / stop) ─────────────────────────────────────
+
+@router.post("/pause", response_model=AgentControlOut)
+def pause(user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Web app: stop the agent claiming new jobs (it keeps heartbeating)."""
+    c = _control(db, user.id)
+    c.paused = True
+    db.commit()
+    db.refresh(c)
+    return c
+
+
+@router.post("/resume", response_model=AgentControlOut)
+def resume(user: User = Depends(current_user), db: Session = Depends(get_db)):
+    c = _control(db, user.id)
+    c.paused = False
+    db.commit()
+    db.refresh(c)
+    return c
+
+
+@router.post("/stop")
+def stop(user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Web app: cancel queued jobs and signal the in-flight search to abort."""
+    c = _control(db, user.id)
+    c.stop_seq += 1
+    cancelled = 0
+    for j in db.scalars(select(Job).where(Job.user_id == user.id, Job.status == "queued")).all():
+        j.status = "failed"
+        j.error = "Stopped by you"
+        cancelled += 1
+    db.commit()
+    return {"ok": True, "cancelled": cancelled, "stop_seq": c.stop_seq}
+
+
+@router.get("/control", response_model=AgentControlOut)
+def control(user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Agent: read pause/stop state to honour on its next poll / between listings."""
+    return _control(db, user.id)

@@ -109,3 +109,10 @@ class AgentStatusOut(BaseModel):
     connected: bool
     device_name: str | None = None
     last_seen: datetime | None = None
+    paused: bool = False
+
+
+class AgentControlOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    paused: bool = False
+    stop_seq: int = 0

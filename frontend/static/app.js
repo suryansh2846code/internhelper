@@ -7,6 +7,7 @@ let selected = new Set();
 let demoMode = false;
 let currentListings = [];   // latest search results (held client-side)
 let resumesLocked = false;  // true while a search/apply job is running
+let bulkStop = false;       // set by the Stop button to break a bulk apply loop
 
 // Lock/unlock résumé add + delete while the agent is scraping/applying, so the
 // résumé set can't change mid-run. The server enforces this too (409).
@@ -161,6 +162,8 @@ async function startSearch() {
   const statusEl = document.getElementById('search-status');
   const platforms = selectedPlatforms();
   if (!platforms.length) { statusEl.textContent = 'Select at least one platform.'; return; }
+  if (agentPaused) { statusEl.textContent = 'Agent is paused — resume it first.'; return; }
+  bulkStop = false;
   btn.disabled = true;
   setResumesLocked(true);
   statusEl.innerHTML = '<span class="spinner"></span>Queuing search…';
@@ -176,10 +179,11 @@ async function startSearch() {
   try { job = await (await apiFetch('/api/search', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })).json(); }
   catch { statusEl.textContent = 'Error queuing search.'; btn.disabled = false; setResumesLocked(false); return; }
 
+  const stopBtn = ` <button class="btn-sm stop-btn" onclick="stopRun()">⏹ Stop</button>`;
   const done = await pollJob(job.id, j => {
-    statusEl.innerHTML = j.status === 'queued'
+    statusEl.innerHTML = (j.status === 'queued'
       ? '<span class="spinner"></span>Waiting for your local agent…'
-      : '<span class="spinner"></span>Agent is searching…';
+      : '<span class="spinner"></span>Agent is searching…') + stopBtn;
   });
   btn.disabled = false;
   setResumesLocked(false);
@@ -296,6 +300,7 @@ async function _runApply(index, answers) {
 }
 
 async function directApply(index) {
+  if (agentPaused) { alert('Agent is paused — resume it first.'); return; }
   if (!confirm('Auto-apply now? Your local agent submits this on the platform using your session.')) return;
   setResumesLocked(true);
   let r;
@@ -406,24 +411,28 @@ async function submitAnswers(index) {
 
 async function applyBatch(indices) {
   if (!indices.length) return;
+  if (agentPaused) { alert('Agent is paused — resume it first.'); return; }
   if (!confirm(`Auto-apply to ${indices.length} internship${indices.length !== 1 ? 's' : ''}? Each runs on your agent, one at a time.`)) return;
-  document.querySelectorAll('#bulk-bar button').forEach(b => b.disabled = true);
+  bulkStop = false;
+  document.querySelectorAll('#bulk-bar .pop-btn').forEach(b => b.disabled = true);  // leave Stop clickable
   setResumesLocked(true);
   const prog = document.getElementById('bulk-progress');
   const PACE_MS = 4000;   // pause between applies so a burst doesn't trip the throttle
   let applied = 0, failed = 0, needAns = 0;
   try {
     for (let n = 0; n < indices.length; n++) {
+      if (bulkStop) break;
       if (prog) prog.textContent = `Applying ${n + 1}/${indices.length} · ✓${applied}${failed ? ` ✗${failed}` : ''}${needAns ? ` ✍️${needAns}` : ''}`;
       const r = await _runApply(indices[n]);
       if (r === true) applied++; else if (r === 'needs_answers') needAns++; else failed++;
-      if (n < indices.length - 1) {
+      if (n < indices.length - 1 && !bulkStop) {
         if (prog) prog.textContent = `Pausing… · ✓${applied}${failed ? ` ✗${failed}` : ''}${needAns ? ` ✍️${needAns}` : ''}`;
         await new Promise(r => setTimeout(r, PACE_MS));
       }
     }
   } finally { setResumesLocked(false); }
-  if (prog) prog.textContent = `Done · ✓${applied} applied${failed ? ` · ✗${failed} failed` : ''}${needAns ? ` · ✍️${needAns} need answers` : ''}`;
+  const stopped = bulkStop ? 'Stopped · ' : 'Done · ';
+  if (prog) prog.textContent = `${stopped}✓${applied} applied${failed ? ` · ✗${failed} failed` : ''}${needAns ? ` · ✍️${needAns} need answers` : ''}`;
   selected.clear();
   refreshAppliedCount();
   setTimeout(() => renderListings(currentListings), 2500);
@@ -441,6 +450,7 @@ function renderBulkBar(autoIndices) {
       ⚡ Auto-apply to all ${autoIndices.length} listing${autoIndices.length !== 1 ? 's' : ''}</button>
     <button id="apply-selected-btn" class="btn-sm pop-btn" style="--pop:${cSel}" onclick="applyBatch([...selected])" ${selected.size ? '' : 'disabled'}>
       Apply to selected (${selected.size})</button>
+    <button class="btn-sm stop-btn" onclick="stopRun()">⏹ Stop</button>
     <span id="bulk-progress" class="bulk-progress"></span>`;
 }
 function toggleSelect(index, checked) {
@@ -564,25 +574,47 @@ function loadDemo() {
 
 // ── Agent connection (Connect your computer) ─────────────────────────────────
 let agentConnected = false;
+let agentPaused = false;
 async function loadAgentStatus() {
   try {
     const s = await (await apiFetch('/api/agent/status')).json();
     agentConnected = !!s.connected;
+    agentPaused = !!s.paused;
     const dot = document.getElementById('agent-dot');
     const txt = document.getElementById('agent-status-text');
     const btn = document.getElementById('connect-btn');
-    if (dot) dot.className = 'agent-dot ' + (agentConnected ? 'on' : 'off');
-    if (txt) txt.textContent = agentConnected
-      ? `Computer connected${s.device_name ? ' · ' + s.device_name : ''}`
-      : 'No computer connected';
+    if (dot) dot.className = 'agent-dot ' + (agentPaused ? 'paused' : agentConnected ? 'on' : 'off');
+    if (txt) txt.textContent = agentPaused
+      ? '⏸ Paused — not taking jobs'
+      : agentConnected ? `Computer connected${s.device_name ? ' · ' + s.device_name : ''}` : 'No computer connected';
     if (btn) btn.textContent = agentConnected ? '🖥️ Connected — reconnect' : '🖥️ Connect your computer';
+    updatePauseBtn();
     const sbDot = document.getElementById('statusbar-dot');
     const sbInfo = document.getElementById('statusbar-info');
-    if (sbDot) sbDot.className = 'statusbar-dot ' + (agentConnected ? 'on' : 'off');
-    if (sbInfo) sbInfo.textContent = agentConnected
-      ? 'Your computer is connected — search & apply are ready'
+    if (sbDot) sbDot.className = 'statusbar-dot ' + (agentPaused ? 'paused' : agentConnected ? 'on' : 'off');
+    if (sbInfo) sbInfo.textContent = agentPaused
+      ? 'Agent paused — resume it to run search & apply'
+      : agentConnected ? 'Your computer is connected — search & apply are ready'
       : 'Connect your computer to run search & apply';
   } catch {}
+}
+
+// ── Run controls: pause / resume / stop ──────────────────────────────────────
+function updatePauseBtn() {
+  const b = document.getElementById('pause-btn');
+  if (b) b.textContent = agentPaused ? '▶️ Resume agent' : '⏸️ Pause agent';
+}
+async function togglePause() {
+  if (demoMode) { agentPaused = !agentPaused; updatePauseBtn(); return; }
+  const ep = agentPaused ? '/api/agent/resume' : '/api/agent/pause';
+  try { const r = await (await apiFetch(ep, { method: 'POST' })).json(); agentPaused = !!r.paused; } catch {}
+  updatePauseBtn();
+  loadAgentStatus();
+}
+async function stopRun() {
+  bulkStop = true;   // break any in-progress bulk loop after the current listing
+  if (demoMode) return;
+  try { await apiFetch('/api/agent/stop', { method: 'POST' }); } catch {}
 }
 
 async function connectComputer() {
