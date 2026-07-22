@@ -19,5 +19,15 @@ if __name__ == "__main__":
             print("DRIVER ERROR:", repr(e))
         from agent._bootstrap import chromium_present
         print("chromium_present:", chromium_present())
+        # Import the full search/apply path so a missing dep (e.g. rich) fails
+        # the check here rather than at apply time in a user's hands.
+        try:
+            from adapters import get_adapter, list_platforms
+            for p in list_platforms():
+                get_adapter(p["name"])
+            import apply.form_filler  # noqa: F401
+            print("RUNTIME IMPORTS OK:", ", ".join(p["name"] for p in list_platforms()))
+        except Exception as e:
+            print("RUNTIME IMPORT ERROR:", repr(e))
         sys.exit(0)
     main()

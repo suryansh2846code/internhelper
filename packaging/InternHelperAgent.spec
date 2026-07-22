@@ -29,7 +29,7 @@ hiddenimports += [
     "apply", "apply.form_filler",
     "applicant", "applicant.resume_pdf",
     "auth", "auth.session",
-    "browser_session", "config", "fpdf", "requests",
+    "browser_session", "config", "fpdf", "requests", "rich", "rich.console",
 ]
 
 a = Analysis(

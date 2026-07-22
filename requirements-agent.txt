@@ -3,6 +3,7 @@
 playwright>=1.44
 requests>=2.31
 fpdf2>=2.7           # Unstop requires a PDF résumé (converted locally)
+rich>=13.0           # console output in apply/form_filler
 
 # macOS menu-bar app (agent/app.py). Windows/Linux use the terminal agent for now.
 rumps>=0.4 ; sys_platform == "darwin"

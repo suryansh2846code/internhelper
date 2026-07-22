@@ -1,7 +1,12 @@
 import os
-from dotenv import load_dotenv
 
-load_dotenv()
+# .env is a dev convenience; the packaged agent runs on plain env vars and
+# doesn't ship python-dotenv, so treat it as optional.
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ModuleNotFoundError:
+    pass
 
 INTERNSHALA_EMAIL = os.getenv("INTERNSHALA_EMAIL")
 INTERNSHALA_PASSWORD = os.getenv("INTERNSHALA_PASSWORD")
