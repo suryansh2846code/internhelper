@@ -249,7 +249,9 @@ function listingHTML(l, i) {
     case 'error':      actions = applyBtn; note = `✗ ${l.error || 'Apply failed'} — tap to retry`; break;
     default:           actions = applyBtn; if (l.reason) note = l.reason;
   }
-  const character = `/assets/illustration/${(i % 5) + 1}.png`;
+  // ?v bust so a previously-cached 404 doesn't stick; hide the hero if the
+  // image genuinely can't load so the card stays clean.
+  const character = `/assets/illustration/${(i % 5) + 1}.png?v=2`;
   return `
     <div class="tile-main">
       <div class="tile-top">${logo}<div class="tile-tags">${platTag}${roleTag}</div></div>
@@ -261,7 +263,7 @@ function listingHTML(l, i) {
       </div>
       <div class="tile-actions" onclick="event.stopPropagation()">${actions}</div>
     </div>
-    <div class="tile-hero"><img src="${character}" alt="" loading="lazy"></div>`;
+    <div class="tile-hero"><img src="${character}" alt="" loading="lazy" onerror="this.closest('.tile-hero').style.display='none'"></div>`;
 }
 
 function patchListingStatus(index, status) { currentListings[index].status = status; refreshListing(index); }

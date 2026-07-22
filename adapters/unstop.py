@@ -67,6 +67,10 @@ class UnstopAdapter(PlatformAdapter):
                         "url": it.get("seo_url") or f"https://unstop.com/{it.get('public_url', '')}",
                         "stipend": _stipend(it.get("jobDetail") or {}),
                         "logo": org.get("logoUrl") or it.get("logoUrl2") or "",
+                        # Full details ride along from the search API — no extra request.
+                        "jd": _html_to_text(it.get("details")),
+                        "skills": _skills_from(it),
+                        "meta": _meta_from(it),
                     })
         except Exception as e:
             print(f"[unstop] search error: {e}")
@@ -117,9 +121,17 @@ class UnstopAdapter(PlatformAdapter):
             page.close()
 
     def apply(self, context: BrowserContext, listing: dict, answers: dict) -> tuple[bool, str]:
+        r = self._run(context, listing, answers or {})
+        return r["ok"], r["message"]
+
+    def try_apply(self, context: BrowserContext, listing: dict, answers: dict) -> dict:
+        # Same wizard, richer result: surfaces custom questions as needs_answers.
+        return self._run(context, listing, answers or {})
+
+    def _run(self, context: BrowserContext, listing: dict, answers: dict) -> dict:
         opp_id = listing.get("id") or _id_from_url(listing.get("url", ""))
         if not opp_id:
-            return False, "Couldn't determine the Unstop opportunity id."
+            return {"ok": False, "message": "Couldn't determine the Unstop opportunity id."}
 
         page = context.new_page()
         try:
@@ -127,7 +139,8 @@ class UnstopAdapter(PlatformAdapter):
             page.wait_for_timeout(4000)
 
             if "/login" in page.url.lower():
-                return False, "Not logged into Unstop — log in and retry."
+                return {"ok": False, "not_logged_in": True,
+                        "message": "Not logged into Unstop — reconnect and retry."}
 
             # Unstop only accepts PDF résumés — convert if needed.
             resume = ensure_pdf(listing.get("resume_path"))
@@ -140,11 +153,17 @@ class UnstopAdapter(PlatformAdapter):
                 page.wait_for_timeout(1200)
 
                 if _is_success(page):
-                    return True, "Registered on Unstop."
+                    return {"ok": True, "message": "Registered on Unstop."}
 
-                # Open-ended question we can't safely auto-answer -> manual.
-                if _has_empty_visible_textarea(page):
-                    return False, "Has custom questions — apply on Unstop manually."
+                # Custom (open-ended) questions on this step. First pass with no
+                # answers -> hand them back to the user; else fill and continue.
+                questions = _open_questions(page)
+                if questions:
+                    if not answers:
+                        return {"ok": False, "needs_answers": True,
+                                "questions": [q["label"] for q in questions], "jd": listing.get("jd", ""),
+                                "message": f"{len(questions)} custom question(s) to answer"}
+                    _fill_custom_answers(page, answers)
 
                 _upload_resume(page, resume)
 
@@ -152,7 +171,7 @@ class UnstopAdapter(PlatformAdapter):
                 # not "Back". This unifies advancing and final submit.
                 cta = _find_button(page, PRIMARY_CTA)
                 if not cta:
-                    return False, "Couldn't find a submit/next button on the Unstop form."
+                    return {"ok": False, "message": "Couldn't find a submit/next button on the Unstop form."}
 
                 before = _step_signature(page)
                 try:
@@ -162,17 +181,17 @@ class UnstopAdapter(PlatformAdapter):
                 page.wait_for_timeout(3000)
 
                 if _is_success(page):
-                    return True, "Registered on Unstop."
+                    return {"ok": True, "message": "Registered on Unstop."}
                 if _step_signature(page) == before:
                     # Didn't advance — a required field is still blocking.
                     missing = _missing_required(page)
                     hint = f" (missing: {', '.join(missing)})" if missing else ""
-                    return False, f"Complete your Unstop profile to auto-apply{hint}."
+                    return {"ok": False, "message": f"Complete your Unstop profile to auto-apply{hint}."}
                 # advanced to the next step -> loop
 
-            return False, "Unstop form had too many steps — apply manually."
+            return {"ok": False, "message": "Unstop form had too many steps — apply manually."}
         except Exception as e:
-            return False, f"Error applying on Unstop: {e}"
+            return {"ok": False, "message": f"Error applying on Unstop: {e}"}
         finally:
             page.close()
 
@@ -191,6 +210,44 @@ def _reg_status(item: dict) -> str:
     if "review" in s:
         return "under review"
     return "applied"
+
+
+def _html_to_text(html: str | None) -> str:
+    """Flatten Unstop's HTML `details` field to readable plain text."""
+    if not html:
+        return ""
+    import html as _htmllib
+    s = re.sub(r"<\s*br\s*/?>", "\n", html, flags=re.I)
+    s = re.sub(r"</\s*(p|div|li|h[1-6])\s*>", "\n", s, flags=re.I)
+    s = re.sub(r"<\s*li[^>]*>", "• ", s, flags=re.I)
+    s = re.sub(r"<[^>]+>", "", s)
+    s = _htmllib.unescape(s)
+    return re.sub(r"\n{3,}", "\n\n", s).strip()
+
+
+def _skills_from(item: dict) -> list[str]:
+    out = []
+    for s in (item.get("required_skills") or []):
+        name = (s.get("skill_name") or s.get("skill") or "").strip()
+        if name and name not in out:
+            out.append(name)
+    return out[:12]
+
+
+def _meta_from(item: dict) -> dict:
+    meta: dict[str, str] = {}
+    locs = item.get("locations") or []
+    if locs:
+        city = ", ".join(filter(None, [locs[0].get("city"), locs[0].get("state")]))
+        if city:
+            meta["Location"] = city
+    elif item.get("region"):
+        meta["Location"] = str(item["region"]).title()
+    meta["Type"] = "Paid" if item.get("isPaid") else "Unpaid"
+    end = item.get("end_date") or ""
+    if end:
+        meta["Apply By"] = end[:10]
+    return meta
 
 
 def _stipend(job_detail: dict) -> str:
@@ -401,12 +458,79 @@ def _missing_required(page) -> list[str]:
     return out
 
 
-def _has_empty_visible_textarea(page) -> bool:
+# Field name/placeholder/id fragments that are Unstop profile fields, not
+# open-ended custom questions — excluded from question detection.
+_KNOWN_FIELDS = ("player_", "course_duration", "course_specialization", "skill",
+                 "location", "email", "phone", "mobile", "resume", "search", "otp")
+
+_LABEL_FOR_JS = r"""
+  (el) => {
+    let t = '';
+    if (el.id) { const l = document.querySelector(`label[for="${el.id}"]`); if (l) t = l.innerText; }
+    if (!t) { const l = el.closest('label'); if (l) t = l.innerText; }
+    if (!t) t = el.getAttribute('aria-label') || el.getAttribute('placeholder') || '';
+    if (!t) { const p = el.closest('.form-group, .field, .form-field, div');
+              if (p) { const lab = p.querySelector('label, .label, .question, .ql-title'); if (lab) t = lab.innerText; } }
+    return (t || 'Custom question').replace(/\s+/g, ' ').trim().slice(0, 200);
+  }
+"""
+
+
+def _open_questions(page) -> list[dict]:
+    """Visible, empty, open-ended custom-question fields on the current step —
+    textareas, contenteditable editors, and required free-text inputs that
+    aren't one of Unstop's known profile fields. Returns [{label}]."""
     try:
-        return page.evaluate("""() => Array.from(document.querySelectorAll('textarea'))
-            .some(t => t.offsetParent !== null && !t.value.trim())""")
+        return page.evaluate(r"""(known) => {
+          const labelFor = %s;
+          const isKnown = el => {
+            const s = ((el.name||'') + ' ' + (el.placeholder||'') + ' ' + (el.id||'')).toLowerCase();
+            return known.some(k => s.includes(k));
+          };
+          const out = [], seen = new Set();
+          document.querySelectorAll('textarea, input[type=text], [contenteditable=true]').forEach(el => {
+            if (el.offsetParent === null) return;                       // not visible
+            const val = (el.value !== undefined ? el.value : el.innerText) || '';
+            if (val.trim()) return;                                      // already answered
+            const isInput = el.tagName === 'INPUT';
+            const required = el.required || el.getAttribute('aria-required') === 'true';
+            if (isInput && !required) return;                            // ignore optional inputs
+            if (isKnown(el)) return;
+            const label = labelFor(el);
+            if (seen.has(label)) return; seen.add(label);
+            out.push({ label });
+          });
+          return out;
+        }""" % _LABEL_FOR_JS, list(_KNOWN_FIELDS)) or []
     except Exception:
-        return False
+        return []
+
+
+def _fill_custom_answers(page, answers: dict) -> None:
+    """Fill the user's answers into the current step's custom-question fields,
+    matching each field to an answer by its label (same labels _open_questions
+    handed back)."""
+    for el in page.query_selector_all("textarea, input[type=text], [contenteditable=true]"):
+        try:
+            if not el.is_visible():
+                continue
+            label = el.evaluate(_LABEL_FOR_JS)
+            ans = answers.get(label)
+            if ans is None:      # fuzzy match on the first 40 chars
+                key = label[:40].lower()
+                for q, a in answers.items():
+                    if key and (key in q.lower() or q[:40].lower() in label.lower()):
+                        ans = a
+                        break
+            if not ans:
+                continue
+            if (el.evaluate("e => e.tagName") or "").upper() in ("TEXTAREA", "INPUT"):
+                el.fill(ans)
+            else:
+                el.evaluate("(e, v) => { e.innerText = v; e.dispatchEvent(new Event('input', {bubbles: true})); }", ans)
+            page.wait_for_timeout(200)
+        except Exception:
+            continue
 
 
 def _upload_resume(page, resume_path: str | None) -> None:
