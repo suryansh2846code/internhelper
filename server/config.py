@@ -17,9 +17,10 @@ class Settings(BaseSettings):
     # Where agents upload/read résumé files (local dir now; S3/R2 later)
     resume_dir: str = "./data/resumes"
 
-    # Download URL for the packaged agent app (empty → Connect modal shows the
-    # terminal fallback only). Set to a GitHub Release asset once built.
+    # Download URLs for the packaged agent apps (empty → Connect modal shows the
+    # terminal fallback only). Set to GitHub Release assets once built.
     agent_download_mac: str = ""
+    agent_download_windows: str = ""
 
 
 settings = Settings()

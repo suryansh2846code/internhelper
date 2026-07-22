@@ -620,6 +620,27 @@ async function stopRun() {
   try { await apiFetch('/api/agent/stop', { method: 'POST' }); } catch {}
 }
 
+function detectOS() {
+  const p = ((navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || navigator.userAgent || '').toLowerCase();
+  if (p.includes('win')) return 'windows';
+  if (p.includes('mac') || p.includes('iphone') || p.includes('ipad')) return 'mac';
+  return 'linux';
+}
+
+// The run command, quoted for each shell (the pairing token is JWT-safe but we
+// quote anyway so nothing in the URL/token trips the shell).
+function pairCommands(serverUrl, token) {
+  return {
+    mac: `SERVER_URL="${serverUrl}" AGENT_PAIR_TOKEN="${token}" python3 -m agent.agent`,
+    linux: `SERVER_URL="${serverUrl}" AGENT_PAIR_TOKEN="${token}" python3 -m agent.agent`,
+    powershell: `$env:SERVER_URL="${serverUrl}"; $env:AGENT_PAIR_TOKEN="${token}"; python -m agent.agent`,
+    cmd: `set "SERVER_URL=${serverUrl}" && set "AGENT_PAIR_TOKEN=${token}" && python -m agent.agent`,
+  };
+}
+
+let _connectData = null;
+let _connectOS = 'mac';
+
 async function connectComputer() {
   const overlay = document.getElementById('modal-overlay');
   const content = document.getElementById('modal-content');
@@ -627,37 +648,12 @@ async function connectComputer() {
     <p class="connect-sub">Loading…</p></div>`;
   untintModal();
   overlay.classList.remove('hidden');
-  let data;
-  try { data = await (await apiFetch('/api/agent/pair-token', { method: 'POST' })).json(); }
+  try { _connectData = await (await apiFetch('/api/agent/pair-token', { method: 'POST' })).json(); }
   catch { content.innerHTML = `<div class="connect-modal"><h2>Connect your computer</h2>
     <p class="connect-sub">Couldn't create a pairing code. Try again.</p></div>`; return; }
 
-  const dl = data.download_mac
-    ? `<a class="btn-primary connect-dl" href="${data.download_mac}">⬇ Download for macOS</a>
-       <ol class="connect-steps">
-         <li>Open the downloaded <b>InternHelper Agent</b>.</li>
-         <li>Menu bar ⚡ → <b>Connect (paste code)…</b> → paste the code below.</li>
-         <li>A browser window opens — log into Internshala &amp; Unstop once.</li>
-       </ol>
-       <p class="connect-sub" style="margin-top:8px">Pairing code (expires in ${data.expires_in_min} min):</p>
-       <div class="cmd-box"><code id="pair-cmd">${data.token}</code>
-         <button class="btn-sm" onclick="copyPairCmd()">Copy</button></div>`
-    : `<p class="connect-sub">Run this once in a terminal — it pairs this computer
-        (code expires in ${data.expires_in_min} min):</p>
-       <div class="cmd-box"><code id="pair-cmd">${data.command}</code>
-         <button class="btn-sm" onclick="copyPairCmd()">Copy</button></div>
-       <ol class="connect-steps">
-         <li>Open Terminal in the project folder.</li>
-         <li>Paste the command above and press Enter.</li>
-         <li>A browser window opens — log into Internshala &amp; Unstop once.</li>
-       </ol>`;
-
-  content.innerHTML = `<div class="connect-modal">
-    <h2>Connect your computer</h2>
-    <p class="connect-sub">The search &amp; apply run on <b>your</b> machine with your logins.</p>
-    ${dl}
-    <p class="connect-note">Waiting for your computer to connect… this box updates automatically.</p>
-  </div>`;
+  _connectOS = detectOS();
+  renderConnect();
 
   // Poll status; auto-close when the computer connects.
   const started = Date.now();
@@ -672,8 +668,66 @@ async function connectComputer() {
     }
   }, 4000);
 }
-function copyPairCmd() {
-  const el = document.getElementById('pair-cmd');
+
+function setConnectOS(os) { _connectOS = os; renderConnect(); }
+
+function renderConnect() {
+  const d = _connectData || {};
+  const os = _connectOS;
+  const cmds = pairCommands(d.server_url || '', d.token || '');
+  const tabs = [['mac', '🍎 macOS'], ['windows', '🪟 Windows'], ['linux', '🐧 Linux']]
+    .map(([k, label]) => `<button class="os-tab ${os === k ? 'active' : ''}" onclick="setConnectOS('${k}')">${label}</button>`).join('');
+
+  const cmdBox = (id, cmd) => `<div class="cmd-box"><code id="${id}">${cmd}</code>
+    <button class="btn-sm" onclick="copyCmd('${id}')">Copy</button></div>`;
+
+  let body;
+  if (os === 'mac' && d.download_mac) {
+    body = `<a class="btn-primary connect-dl" href="${d.download_mac}">⬇ Download for macOS</a>
+      <ol class="connect-steps">
+        <li>Open the downloaded <b>InternHelper Agent</b>.</li>
+        <li>Menu bar ⚡ → <b>Connect (paste code)…</b> → paste the code below.</li>
+        <li>A browser window opens — log into Internshala &amp; Unstop once.</li>
+      </ol>
+      <p class="connect-sub" style="margin-top:8px">Pairing code (expires in ${d.expires_in_min} min):</p>
+      ${cmdBox('pair-code', d.token)}`;
+  } else if (os === 'windows' && d.download_windows) {
+    body = `<a class="btn-primary connect-dl" href="${d.download_windows}">⬇ Download for Windows</a>
+      <ol class="connect-steps">
+        <li>Run the downloaded <b>InternHelper Agent</b>.</li>
+        <li>Tray ⚡ → <b>Connect (paste code)…</b> → paste the code below.</li>
+        <li>A browser window opens — log into Internshala &amp; Unstop once.</li>
+      </ol>
+      <p class="connect-sub" style="margin-top:8px">Pairing code (expires in ${d.expires_in_min} min):</p>
+      ${cmdBox('pair-code', d.token)}`;
+  } else {
+    // Terminal path: one-time setup + the OS-correct run command.
+    const runCmd = os === 'windows'
+      ? `<p class="connect-sub" style="margin:12px 0 4px"><b>PowerShell:</b></p>${cmdBox('cmd-ps', cmds.powershell)}
+         <p class="connect-sub" style="margin:10px 0 4px">or <b>Command Prompt (cmd):</b></p>${cmdBox('cmd-cmd', cmds.cmd)}`
+      : cmdBox('cmd-sh', os === 'mac' ? cmds.mac : cmds.linux);
+    const py = os === 'windows' ? 'python' : 'python3';
+    body = `<p class="connect-sub">One-time setup (needs <b>Python 3.12+</b> and <b>Git</b>), then the pairing command — code expires in ${d.expires_in_min} min:</p>
+      <ol class="connect-steps">
+        <li>Install the agent once:
+          ${cmdBox('cmd-setup', `git clone <your-repo-url> && cd internshala-autoapply && ${py} -m pip install -r requirements-agent.txt && ${py} -m playwright install chromium`)}
+        </li>
+        <li>From the project folder, run:${runCmd}</li>
+        <li>A browser window opens — log into Internshala &amp; Unstop once.</li>
+      </ol>`;
+  }
+
+  document.getElementById('modal-content').innerHTML = `<div class="connect-modal">
+    <h2>Connect your computer</h2>
+    <p class="connect-sub">Search &amp; apply run on <b>your</b> machine with your logins.</p>
+    <div class="os-tabs">${tabs}</div>
+    ${body}
+    <p class="connect-note">Waiting for your computer to connect… this box updates automatically.</p>
+  </div>`;
+}
+
+function copyCmd(id) {
+  const el = document.getElementById(id);
   if (el) navigator.clipboard.writeText(el.textContent).then(() => {
     const b = event.target; const o = b.textContent; b.textContent = 'Copied ✓';
     setTimeout(() => b.textContent = o, 1500);

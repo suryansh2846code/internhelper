@@ -40,7 +40,9 @@ def pair_token(request: Request, user: User = Depends(current_user)):
     # app will consume the same token via a deep link instead. python3 on macOS.
     command = f"SERVER_URL={base} AGENT_PAIR_TOKEN={token} python3 -m agent.agent"
     return PairTokenOut(token=token, expires_in_min=settings.pairing_token_ttl_min,
-                        command=command, download_mac=settings.agent_download_mac)
+                        command=command, server_url=base,
+                        download_mac=settings.agent_download_mac,
+                        download_windows=settings.agent_download_windows)
 
 
 @router.post("/pair", response_model=PairOut)

@@ -91,8 +91,10 @@ class JobResult(BaseModel):
 class PairTokenOut(BaseModel):
     token: str
     expires_in_min: int
-    command: str              # ready-to-run one-liner (terminal fallback)
-    download_mac: str = ""    # packaged app URL (empty if not published yet)
+    command: str              # ready-to-run one-liner (terminal fallback, bash)
+    server_url: str = ""      # so the UI can build per-OS commands
+    download_mac: str = ""    # packaged macOS app URL (empty if not published yet)
+    download_windows: str = ""  # packaged Windows app URL (empty if not published yet)
 
 
 class PairIn(BaseModel):
