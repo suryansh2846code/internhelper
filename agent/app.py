@@ -24,7 +24,7 @@ except ImportError:
 
 from agent.client import ServerClient
 from agent import agent as core
-from agent.session import open_profile, goto_login
+from agent.session import open_profile, goto_login, is_logged_in
 
 
 class AgentApp(rumps.App):
@@ -106,7 +106,21 @@ class AgentApp(rumps.App):
             return
         core._save_identity({"server": self.server, "agent_key": key})
         self._start(client)
-        self._notify("Connected", "Your computer is linked. Now log into the platforms.")
+        self._notify("Connected", "Linked! Opening the platform logins…")
+        self._first_run_logins()
+
+    def _first_run_logins(self):
+        """After pairing, open a login page for any platform not already logged
+        in, so the user signs in once without hunting through the menu."""
+        def work():
+            w = self._ensure_worker()
+            for p in ("internshala", "unstop"):
+                try:
+                    if not w.run(lambda ctx, p=p: is_logged_in(ctx, p)):
+                        w.run(lambda ctx, p=p: goto_login(ctx, p))
+                except Exception:
+                    pass
+        threading.Thread(target=work, daemon=True).start()
 
     # ── platform login ───────────────────────────────────────────────────────
     def _login(self, platform):

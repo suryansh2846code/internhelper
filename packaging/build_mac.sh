@@ -18,8 +18,13 @@ find .buildvenv -type d -name ".local-browsers" -exec rm -rf {} + 2>/dev/null ||
 echo "== building the .app =="
 pyinstaller --noconfirm --clean packaging/InternHelperAgent.spec
 
+echo "== zipping for distribution =="
+# ditto preserves the .app bundle structure/metadata (unlike plain zip).
+( cd dist && ditto -c -k --keepParent "InternHelper Agent.app" "InternHelperAgent.zip" )
+
 echo
 echo "Built: dist/InternHelper Agent.app"
+echo "Zip:   dist/InternHelperAgent.zip   (upload this as a GitHub Release asset)"
 echo "Open it:  open 'dist/InternHelper Agent.app'"
 echo
 echo "Unsigned apps are blocked by Gatekeeper. To run locally, right-click → Open,"
